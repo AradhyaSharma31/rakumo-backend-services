@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package metadata.object.version.custom;
+
+option java_multiple_files = true;
+option java_package = "com.rakumo.metadata.object.version.custom";
+option java_outer_classname = "CustomMetadataProto";
+
+service CustomMetadataService {
+  rpc AddMetadata (CustomMetadataRequest) returns (CustomMetadataResponse);
+  rpc GetMetadata (GetMetadataRequest) returns (CustomMetadataResponse);
+  rpc RemoveMetadata (RemoveMetadataRequest) returns (CustomMetadataResponse);
+}
+
+message CustomMetadata {
+  string key = 1;
+  string value = 2;
+}
+
+message CustomMetadataRequest {
+  string version_id = 1;
+  string key = 2;
+  string value = 3;
+}
+
+message CustomMetadataResponse {
+  string version_id = 1;
+  repeated CustomMetadata metadata = 2;
+}
+
+message GetMetadataRequest {
+  string version_id = 1;
+}
+
+message RemoveMetadataRequest {
+  string version_id = 1;
+  string key = 2;
+}
