@@ -87,8 +87,8 @@ public final class ContentTypeResolver {
             return detectedType;
         }
 
-        String fileName = file.getFileName().toString();
-        String extension = fileName.substring(fileName.lastIndexOf('.') + 1);
+        String fileName = file.getFileName().toString(); // something.jpg
+        String extension = fileName.substring(fileName.lastIndexOf('.') + 1); // jpg
         return MIME_TYPES.getOrDefault(extension.toLowerCase(),
                 "application/octet-stream");
     }

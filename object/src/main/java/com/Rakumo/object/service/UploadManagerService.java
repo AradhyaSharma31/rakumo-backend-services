@@ -5,6 +5,7 @@ import com.Rakumo.object.dto.UploadResponse;
 import com.Rakumo.object.exception.IncompleteUploadException;
 import com.Rakumo.object.exception.InvalidChunkException;
 import com.Rakumo.object.exception.MetadataSyncException;
+import com.Rakumo.object.exception.ObjectNotFoundException;
 import com.Rakumo.object.model.FileChunkInfo;
 
 import java.io.IOException;
@@ -20,5 +21,5 @@ public interface UploadManagerService {
             throws InvalidChunkException, IOException;
 
     UploadResponse completeMultipartUpload(String uploadId)
-            throws IOException, IncompleteUploadException;
-}
+            throws IOException, IncompleteUploadException, ObjectNotFoundException, MetadataSyncException;
+    }

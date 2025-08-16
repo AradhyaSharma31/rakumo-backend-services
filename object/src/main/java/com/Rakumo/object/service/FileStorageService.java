@@ -19,7 +19,7 @@ public interface FileStorageService {
     void assembleChunks(String uploadId, LocalObjectReference finalRef)
             throws IOException, IncompleteUploadException;
 
-    InputStream retrieveFile(LocalObjectReference ref) throws ObjectNotFoundException;
+    InputStream retrieveFile(LocalObjectReference ref) throws ObjectNotFoundException, IOException;
 
     void deleteFile(LocalObjectReference ref) throws IOException;
 }

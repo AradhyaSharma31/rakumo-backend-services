@@ -1,19 +1,15 @@
-package com.Rakumo.object.service.impl;
+package com.Rakumo.object.service.implementation;
 
 import com.Rakumo.object.exception.*;
 import com.Rakumo.object.model.*;
 import com.Rakumo.object.service.FileStorageService;
 import com.Rakumo.object.util.*;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.nio.file.*;
-import java.nio.file.attribute.FileTime;
-import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -68,14 +64,24 @@ public class FileStorageServiceImpl implements FileStorageService {
         Path chunkPath = resolveChunkPath(chunk);
         ensureParentExists(chunkPath);
 
-        log.debug("Storing chunk {} for upload {}", chunk.getChunkIndex(), chunk.getUploadId());
+        try (InputStream chunkData = chunk.getInputStream()) {
+            Path tempPath = createTempFile("chunk-");
+            try {
+                Files.copy(chunkData, tempPath);
 
-        // 1. Store chunk data
-        try (InputStream is = chunk.getData()) {
-            Files.copy(is, chunkPath, StandardCopyOption.REPLACE_EXISTING);
+                if (chunk.getChecksum() != null &&
+                        !ChecksumUtils.verify(tempPath, chunk.getChecksum())) {
+                    throw new ChecksumMismatchException("Chunk checksum mismatch");
+                }
+
+                Files.move(tempPath, chunkPath, StandardCopyOption.ATOMIC_MOVE);
+            } catch (ChecksumMismatchException e) {
+                throw new RuntimeException(e);
+            } finally {
+                silentDelete(tempPath);
+            }
         }
 
-        // 2. Update metadata
         updateChunkMetadata(chunk, chunkPath);
     }
 
@@ -115,6 +121,8 @@ public class FileStorageServiceImpl implements FileStorageService {
             Files.move(assemblyTempPath, finalPath, StandardCopyOption.ATOMIC_MOVE);
             log.info("Successfully assembled file at: {}", finalPath);
 
+        } catch (ChecksumMismatchException e) {
+            throw new RuntimeException(e);
         } finally {
             silentDelete(assemblyTempPath);
             cleanupUpload(uploadId);
@@ -122,7 +130,7 @@ public class FileStorageServiceImpl implements FileStorageService {
     }
 
     @Override
-    public InputStream retrieveFile(LocalObjectReference ref) throws ObjectNotFoundException {
+    public InputStream retrieveFile(LocalObjectReference ref) throws ObjectNotFoundException, IOException {
         Path filePath = resolveFinalPath(ref);
         if (!Files.exists(filePath)) {
             log.error("File not found: {}", filePath);
@@ -142,7 +150,7 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
     }
 
-    // ================ Metadata Helpers ================
+    // Metadata Helpers
     private record ChunkMetadata(int index, Path path, String checksum) {}
 
     private Path getMetadataPath(String uploadId) {

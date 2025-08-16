@@ -30,7 +30,7 @@ public final class ChecksumUtils {
     public static String md5(Path file) throws IOException {
         try (InputStream is = new BufferedInputStream(Files.newInputStream(file))) {
             MessageDigest digest = MessageDigest.getInstance("MD5");
-            byte[] buffer = new byte[8192];
+            byte[] buffer = new byte[STREAM_BUFFER_SIZE];
             int bytesRead;
 
             while ((bytesRead = is.read(buffer)) != -1) {

@@ -14,7 +14,7 @@ public interface DownloadManagerService {
      * Retrieves a file with metadata
      */
     DownloadResponse retrieveFile(DownloadRequest request)
-            throws ObjectNotFoundException;
+            throws ObjectNotFoundException, IOException;
 
     /**
      * Generates pre-signed download URL

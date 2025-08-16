@@ -11,6 +11,8 @@ public class DownloadRequest {
     @NotBlank
     private String bucketName;
 
+    private String ObjectKey;
+
     @NotBlank
     private String objectName;
 
