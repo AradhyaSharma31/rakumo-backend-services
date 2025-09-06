@@ -43,7 +43,6 @@ public class UploadManagerServiceImpl implements UploadManagerService {
         validateUploadRequest(request);
 
         // For small files: read into memory for efficiency
-        // For large files: consider streaming approach (would need refactor)
         byte[] bytes = request.getFileData().readAllBytes();
         long size = bytes.length;
 
@@ -169,7 +168,7 @@ public class UploadManagerServiceImpl implements UploadManagerService {
                 totalSize
         );
 
-        // Cleanup ONLY this upload
+        // Cleanup this upload
         fileChunkService.cleanupUpload(uploadId);
 
         log.info("Completed multipart upload {} with {} chunks, total size: {} bytes",
