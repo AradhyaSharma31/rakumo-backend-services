@@ -14,10 +14,10 @@ public interface FileStorageService {
     void storeCompleteFile(LocalObjectReference ref, InputStream data)
             throws IOException, ChecksumMismatchException;
 
-    void storeChunk(FileChunkInfo chunk) throws IOException;
+    void storeChunk(FileChunkInfo chunk) throws IOException, ChecksumMismatchException;
 
     void assembleChunks(String uploadId, LocalObjectReference finalRef)
-            throws IOException, IncompleteUploadException;
+            throws IOException, IncompleteUploadException, ChecksumMismatchException;
 
     InputStream retrieveFile(LocalObjectReference ref) throws ObjectNotFoundException, IOException;
 

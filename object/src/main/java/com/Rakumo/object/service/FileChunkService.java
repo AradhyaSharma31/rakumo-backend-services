@@ -4,6 +4,7 @@ import com.Rakumo.object.exception.InvalidChunkException;
 import com.Rakumo.object.model.FileChunkInfo;
 import com.Rakumo.object.model.LocalObjectReference;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 
@@ -11,10 +12,11 @@ public interface FileChunkService {
 
     String initiateMultipartUpload(LocalObjectReference ref);
 
-    void validateChunk(FileChunkInfo chunk) throws InvalidChunkException;
+    void validateChunk(FileChunkInfo chunk) throws InvalidChunkException, IOException;
 
     List<FileChunkInfo> listChunks(String uploadId);
 
     void cleanupStaleChunks(Duration olderThan);
 
+    public void cleanupUpload(String uploadId) throws IOException;
 }

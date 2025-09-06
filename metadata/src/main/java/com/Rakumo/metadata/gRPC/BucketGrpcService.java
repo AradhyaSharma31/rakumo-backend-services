@@ -4,7 +4,7 @@ import com.Rakumo.metadata.DTO.BucketDTO;
 import com.Rakumo.metadata.Exceptions.BucketNotFoundException;
 import com.Rakumo.metadata.Services.BucketService;
 import com.google.protobuf.Timestamp;
-import com.rakumo.metadata.bucket.*;
+import com.Rakumo.metadata.bucket.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;

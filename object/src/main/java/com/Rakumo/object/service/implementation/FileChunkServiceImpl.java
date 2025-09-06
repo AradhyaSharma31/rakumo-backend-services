@@ -4,8 +4,12 @@ import com.Rakumo.object.exception.InvalidChunkException;
 import com.Rakumo.object.model.FileChunkInfo;
 import com.Rakumo.object.model.LocalObjectReference;
 import com.Rakumo.object.service.FileChunkService;
+import com.Rakumo.object.util.ChecksumUtils;
+import com.Rakumo.object.util.FilePathUtils;
 import com.Rakumo.object.util.FileUtils;
 import com.Rakumo.object.util.JsonUtils;
+import com.fasterxml.jackson.core.type.TypeReference;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,10 +17,10 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,19 +28,38 @@ import java.util.stream.Collectors;
 public class FileChunkServiceImpl implements FileChunkService {
 
     @Value("${storage.temp.root:/tmp/uploads}")
+    private String tempRootPath;
     private Path tempRoot;
 
-    // In-memory tracking of active uploads
-    private final Map<String, Instant> activeUploads = new ConcurrentHashMap<>();
+    @PostConstruct
+    public void init() {
+        this.tempRoot = Paths.get(tempRootPath);
+        try {
+            FileUtils.createDirectory(tempRoot);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to create temp root", e);
+        }
+    }
 
     @Override
     public String initiateMultipartUpload(LocalObjectReference ref) {
         String uploadId = UUID.randomUUID().toString();
-        Path uploadDir = tempRoot.resolve(uploadId);
+        String safeUploadId = FilePathUtils.sanitize(uploadId);
+        Path uploadDir = tempRoot.resolve(safeUploadId);
 
         try {
             FileUtils.createDirectory(uploadDir);
-            activeUploads.put(uploadId, Instant.now());
+
+            Path metadataFile = uploadDir.resolve("metadata.json");
+            Map<String, String> metadata = new HashMap<>();
+            metadata.put("uploadId", uploadId);
+            metadata.put("bucketName", ref.getBucketName());
+            metadata.put("objectKey", ref.getObjectKey());
+            metadata.put("startedAt", Instant.now().toString());
+            metadata.put("lastActivity", Instant.now().toString());
+
+            JsonUtils.write(metadataFile, metadata);
+
             log.info("Initiated multipart upload: {}", uploadId);
             return uploadId;
         } catch (IOException e) {
@@ -45,34 +68,47 @@ public class FileChunkServiceImpl implements FileChunkService {
     }
 
     @Override
-    public void validateChunk(FileChunkInfo chunk) throws InvalidChunkException {
-        // 1. Verify upload session exists
-        if (!activeUploads.containsKey(chunk.getUploadId())) {
+    public void validateChunk(FileChunkInfo chunk) throws InvalidChunkException, IOException {
+        // 1. Validate upload exists
+        Path metadataFile = getMetadataPath(chunk.getUploadId());
+        if (!Files.exists(metadataFile)) {
             throw new InvalidChunkException("Invalid upload ID: " + chunk.getUploadId());
         }
 
-        // 2. Verify chunk sequence
-        List<FileChunkInfo> existingChunks = listChunks(chunk.getUploadId());
-        if (!existingChunks.isEmpty()) {
-            int lastIndex = existingChunks.get(existingChunks.size() - 1).getChunkIndex();
-            if (chunk.getChunkIndex() != lastIndex + 1) {
-                throw new InvalidChunkException("Out-of-order chunk. Expected: " + (lastIndex + 1) +
-                        ", Received: " + chunk.getChunkIndex());
+        // 2. Update activity timestamp
+        updateLastActivity(chunk.getUploadId());
+
+        // 3. Validate checksum if provided
+        if (chunk.getChecksum() != null) {
+            Path chunkPath = getChunkPath(chunk.getUploadId(), chunk.getChunkIndex());
+            if (Files.exists(chunkPath) && !ChecksumUtils.verify(chunkPath, chunk.getChecksum())) {
+                throw new InvalidChunkException("Chunk checksum mismatch");
             }
-        } else if (chunk.getChunkIndex() != 0) {
-            throw new InvalidChunkException("First chunk must have index 0");
+        }
+    }
+
+    private void updateLastActivity(String uploadId) {
+        try {
+            Path metadataFile = getMetadataPath(uploadId);
+            if (Files.exists(metadataFile)) {
+                // FIXED: Explicit TypeReference
+                Map<String, String> metadata = JsonUtils.readValue(metadataFile,
+                        new TypeReference<Map<String, String>>(){});
+                metadata.put("lastActivity", Instant.now().toString());
+                JsonUtils.write(metadataFile, metadata);
+            }
+        } catch (IOException e) {
+            log.warn("Failed to update lastActivity for upload {}: {}", uploadId, e.getMessage());
         }
     }
 
     @Override
     public List<FileChunkInfo> listChunks(String uploadId) {
-        Path metadataFile = getMetadataPath(uploadId);
-        if (!Files.exists(metadataFile)) {
-            return Collections.emptyList();
-        }
+        Path chunksFile = getChunksDataPath(uploadId);
+        if (!Files.exists(chunksFile)) return Collections.emptyList();
 
         try {
-            return JsonUtils.readList(metadataFile, FileChunkInfo.class).stream()
+            return JsonUtils.readList(chunksFile, FileChunkInfo.class).stream()
                     .sorted(Comparator.comparingInt(FileChunkInfo::getChunkIndex))
                     .collect(Collectors.toList());
         } catch (IOException e) {
@@ -85,28 +121,64 @@ public class FileChunkServiceImpl implements FileChunkService {
     public void cleanupStaleChunks(Duration olderThan) {
         Instant cutoff = Instant.now().minus(olderThan);
 
-        activeUploads.entrySet().removeIf(entry -> {
-            if (entry.getValue().isBefore(cutoff)) {
+        try {
+            if (!Files.exists(tempRoot)) return;
+
+            Files.list(tempRoot).forEach(uploadDir -> {
                 try {
-                    Path uploadDir = tempRoot.resolve(entry.getKey());
-                    FileUtils.deleteDirectory(uploadDir);
-                    log.info("Cleaned up stale upload: {}", entry.getKey());
-                    return true;
+                    Path metadataFile = uploadDir.resolve("metadata.json");
+                    if (Files.exists(metadataFile)) {
+                        // FIXED: Explicit TypeReference
+                        Map<String, String> metadata = JsonUtils.readValue(metadataFile,
+                                new TypeReference<Map<String, String>>(){});
+                        Instant lastActivity = Instant.parse(metadata.get("lastActivity"));
+                        if (lastActivity.isBefore(cutoff)) {
+                            FileUtils.deleteDirectory(uploadDir);
+                            log.info("Cleaned up stale upload: {}", uploadDir.getFileName());
+                        }
+                    }
                 } catch (IOException e) {
-                    log.warn("Failed to cleanup upload {}: {}", entry.getKey(), e.getMessage());
-                    return false;
+                    log.warn("Failed to process upload directory {}: {}", uploadDir, e.getMessage());
                 }
-            }
-            return false;
-        });
+            });
+        } catch (IOException e) {
+            log.warn("Failed to list temp uploads: {}", e.getMessage());
+        }
     }
 
-    // ================ Helper Methods ================
+    @Override
+    public void cleanupUpload(String uploadId) throws IOException {
+        String safeUploadId = FilePathUtils.sanitize(uploadId);
+        Path uploadDir = tempRoot.resolve(safeUploadId);
+
+        if (Files.exists(uploadDir)) {
+            FileUtils.deleteDirectory(uploadDir);
+            log.info("Cleaned up upload: {}", uploadId);
+        }
+    }
+
+    // ================== Helper Methods ==================
     private Path getMetadataPath(String uploadId) {
-        return tempRoot.resolve(uploadId).resolve("metadata.json");
+        return tempRoot.resolve(FilePathUtils.sanitize(uploadId)).resolve("metadata.json");
     }
 
-    private Path getChunkPath(String uploadId, int chunkIndex) {
-        return tempRoot.resolve(uploadId).resolve(chunkIndex + ".chunk");
+    private Path getChunksDataPath(String uploadId) {
+        return tempRoot.resolve(FilePathUtils.sanitize(uploadId)).resolve("chunks.json");
+    }
+
+    public Path getChunkPath(String uploadId, int chunkIndex) {
+        return tempRoot.resolve(FilePathUtils.sanitize(uploadId))
+                .resolve(FilePathUtils.sanitize(chunkIndex + ".chunk"));
+    }
+
+    public void saveChunkMetadata(String uploadId, List<FileChunkInfo> chunks) throws IOException {
+        Path chunksFile = getChunksDataPath(uploadId);
+        JsonUtils.write(chunksFile, chunks);
+    }
+
+    public void addChunkMetadata(String uploadId, FileChunkInfo chunk) throws IOException {
+        List<FileChunkInfo> chunks = listChunks(uploadId);
+        chunks.add(chunk);
+        saveChunkMetadata(uploadId, chunks);
     }
 }

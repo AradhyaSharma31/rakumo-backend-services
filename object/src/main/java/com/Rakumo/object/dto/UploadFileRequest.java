@@ -2,10 +2,12 @@ package com.Rakumo.object.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
 import lombok.Data;
-import org.springframework.web.multipart.MultipartFile;
+import java.io.InputStream;
 
 @Data
+@AllArgsConstructor
 public class UploadFileRequest {
 
     @NotBlank
@@ -15,7 +17,7 @@ public class UploadFileRequest {
     private String objectKey;
 
     @NotNull
-    private MultipartFile file;
+    private InputStream fileData;
 
     private String contentType;
 }

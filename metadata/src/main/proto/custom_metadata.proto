@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package metadata.object.version.custom;
+package com.Rakumo.metadata.object.version.custom;
 
 option java_multiple_files = true;
-option java_package = "com.rakumo.metadata.object.version.custom";
+option java_package = "com.Rakumo.metadata.object.version.custom";
 option java_outer_classname = "CustomMetadataProto";
 
 service CustomMetadataService {

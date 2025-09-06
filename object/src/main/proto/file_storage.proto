@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package com.Rakumo.object.storage;
+
+import "google/protobuf/empty.proto";
+
+option java_multiple_files = true;
+option java_package = "com.Rakumo.object.storage";
+option java_outer_classname = "FileStorageProto";
+
+service FileStorageServiceProto {
+  rpc StoreCompleteFile (StoreFileRequestMessage) returns (StoreFileResponseMessage);
+  rpc StoreChunk (FileChunkInfoMessage) returns (StoreChunkResponseMessage);
+  rpc AssembleChunks (AssembleRequestMessage) returns (AssembleResponseMessage);
+  rpc RetrieveFile (LocalObjectReferenceMessage) returns (stream FileChunkMessage);
+  rpc DeleteFile (LocalObjectReferenceMessage) returns (DeleteResponseMessage);
+}
+
+message LocalObjectReferenceMessage {
+  string bucket_name = 1;
+  string object_key = 2;
+  string version_id = 3;
+  string checksum = 4;
+  int64 size = 5;
+}
+
+message StoreFileRequestMessage {
+  LocalObjectReferenceMessage ref = 1;
+  bytes data = 2;
+}
+
+message StoreFileResponseMessage {
+  bool success = 1;
+  string checksum = 2;
+  int64 size = 3;
+}
+
+message FileChunkInfoMessage {
+  string upload_id = 1;
+  int32 chunk_index = 2;
+  bytes data = 3;
+  string checksum = 4;
+  string bucket_name = 5;
+  string object_key = 6;
+  int64 chunk_size = 7;
+}
+
+message StoreChunkResponseMessage {
+  bool success = 1;
+  int32 chunk_index = 2;
+}
+
+message AssembleRequestMessage {
+  string upload_id = 1;
+  LocalObjectReferenceMessage final_ref = 2;
+}
+
+message AssembleResponseMessage {
+  bool success = 1;
+  string upload_id = 2;
+}
+
+message FileChunkMessage {
+  bytes data = 1;
+}
+
+message DeleteResponseMessage {
+  bool success = 1;
+}

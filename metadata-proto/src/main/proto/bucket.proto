@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package metadata.bucket;
+package com.Rakumo.metadata.bucket;
 
 import "google/protobuf/timestamp.proto";
 
 option java_multiple_files = true;
-option java_package = "com.rakumo.metadata.bucket";
+option java_package = "com.Rakumo.metadata.bucket";
 option java_outer_classname = "BucketProto";
 
 service BucketService {

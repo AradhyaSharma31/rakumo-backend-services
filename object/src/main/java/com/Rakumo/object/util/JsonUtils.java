@@ -1,5 +1,6 @@
 package com.Rakumo.object.util;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -22,6 +23,15 @@ public final class JsonUtils {
                 mapper.getTypeFactory().constructCollectionType(List.class, type));
     }
 
+    // support for TypeReference
+    public static <T> T readValue(Path path, TypeReference<T> typeReference) throws IOException {
+        return mapper.readValue(Files.readAllBytes(path), typeReference);
+    }
+
+    public static <T> T readValue(Path path, Class<T> type) throws IOException {
+        return mapper.readValue(path.toFile(), type);
+    }
+
     public static void write(Path path, Object data) throws IOException {
         Path tempPath = path.resolveSibling(path.getFileName() + ".tmp");
         try {
@@ -30,9 +40,5 @@ public final class JsonUtils {
         } finally {
             Files.deleteIfExists(tempPath);
         }
-    }
-
-    public static <T> T readValue(Path path, Class<T> type) throws IOException {
-        return mapper.readValue(path.toFile(), type);
     }
 }

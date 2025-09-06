@@ -10,7 +10,7 @@ public class FilePathUtils {
 
     public static Path resolvePath(Path baseDir, String bucket, String objectKey, String versionId) {
         String sanitizeBucket = sanitize(bucket);
-        String sanitizedKey = sanitize(bucket);
+        String sanitizedKey = sanitize(objectKey);
         return baseDir.resolve(sanitizeBucket)
                 .resolve(sanitizedKey)
                 .resolve(versionId)

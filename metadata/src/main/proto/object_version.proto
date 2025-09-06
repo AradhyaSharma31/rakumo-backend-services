@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package metadata.object.version;
+package com.Rakumo.metadata.object.version;
 
 import "google/protobuf/timestamp.proto";
 
 option java_multiple_files = true;
-option java_package = "com.rakumo.metadata.object.version";
+option java_package = "com.Rakumo.metadata.object.version";
 option java_outer_classname = "ObjectVersionProto";
 
 service ObjectVersionService {

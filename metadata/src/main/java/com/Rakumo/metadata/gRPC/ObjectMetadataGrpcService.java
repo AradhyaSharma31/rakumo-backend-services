@@ -4,7 +4,7 @@ import com.Rakumo.metadata.DTO.ObjectMetadataDTO;
 import com.Rakumo.metadata.Exceptions.ObjectNotFoundException;
 import com.Rakumo.metadata.Services.ObjectMetadataService;
 import com.google.protobuf.Timestamp;
-import com.rakumo.metadata.object.*;
+import com.Rakumo.metadata.object.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;

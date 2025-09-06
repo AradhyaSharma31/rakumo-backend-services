@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package com.Rakumo.object.download;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+option java_multiple_files = true;
+option java_package = "com.Rakumo.object.download";
+option java_outer_classname = "DownloadManagerProto";
+
+service DownloadManagerServiceProto {
+  rpc RetrieveFile (DownloadRequestMessage) returns (DownloadResponseMessage);
+  rpc GeneratePresignedUrl (DownloadRequestWithExpiryMessage) returns (PresignedUrlResponseMessage);
+  rpc StreamFileRange (FileRangeRequestMessage) returns (stream FileChunkMessage);
+}
+
+message LocalObjectReferenceMessage {
+  string bucket_name = 1;
+  string object_key = 2;
+  string version_id = 3;
+  string checksum = 4;
+  int64 size = 5;
+}
+
+message DownloadRequestMessage {
+  string bucket_name = 1;
+  string object_key = 2;
+  string version_id = 3;
+}
+
+message DownloadRequestWithExpiryMessage {
+  DownloadRequestMessage request = 1;
+  google.protobuf.Duration expiry = 2;
+}
+
+message DownloadResponseMessage {
+  string bucket_name = 1;
+  string object_key = 2;
+  string version_id = 3;
+  int64 content_length = 4;
+  string content_type = 5;
+  string checksum = 6;
+  google.protobuf.Timestamp last_modified = 7;
+}
+
+message PresignedUrlResponseMessage {
+  string url = 1;
+}
+
+message FileRangeRequestMessage {
+  LocalObjectReferenceMessage ref = 1;
+  int64 start = 2;
+  int64 end = 3;
+}
+
+message FileChunkMessage {
+  bytes data = 1;
+}

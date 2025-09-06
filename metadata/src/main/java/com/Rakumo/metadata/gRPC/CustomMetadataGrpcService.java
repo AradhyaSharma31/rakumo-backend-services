@@ -4,7 +4,7 @@ import com.Rakumo.metadata.DTO.CustomMetadataDTO;
 import com.Rakumo.metadata.Exceptions.ObjectVersionNotFoundException;
 import com.Rakumo.metadata.Mapper.CustomMetadataMapper;
 import com.Rakumo.metadata.Services.CustomMetadataService;
-import com.rakumo.metadata.object.version.custom.*;
+import com.Rakumo.metadata.object.version.custom.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;

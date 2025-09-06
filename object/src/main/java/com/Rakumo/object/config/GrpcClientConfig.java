@@ -8,12 +8,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class GrpcClientConfig {
 
-    // provides lifecycle management for gRPC channels in Java
+    // provides lifecycle management for gRPC channels
     @Bean
     public ManagedChannel metadataServiceChannel() {
         return ManagedChannelBuilder
                 .forAddress("localhost", 9010)
-                .usePlaintext() // Only for development
+                .usePlaintext()
                 .build();
     }
 

@@ -11,10 +11,8 @@ public class DownloadRequest {
     @NotBlank
     private String bucketName;
 
-    private String ObjectKey;
-
     @NotBlank
-    private String objectName;
+    private String objectKey;
 
     private String versionId;
     private Long byteRangeStart;

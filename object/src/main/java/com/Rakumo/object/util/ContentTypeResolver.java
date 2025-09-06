@@ -79,6 +79,18 @@ public final class ContentTypeResolver {
         MIME_TYPES.put("apk", "application/vnd.android.package-archive");
         MIME_TYPES.put("deb", "application/x-debian-package");
         MIME_TYPES.put("rpm", "application/x-redhat-package-manager");
+
+        // Web fonts
+        MIME_TYPES.put("woff", "font/woff");
+        MIME_TYPES.put("woff2", "font/woff2");
+        MIME_TYPES.put("ttf", "font/ttf");
+
+        // Markdown
+        MIME_TYPES.put("md", "text/markdown");
+
+        // Ebooks
+        MIME_TYPES.put("epub", "application/epub+zip");
+        MIME_TYPES.put("mobi", "application/x-mobipocket-ebook");
     }
 
     public static String resolve(Path file) throws IOException {
