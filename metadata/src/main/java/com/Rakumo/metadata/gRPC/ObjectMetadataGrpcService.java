@@ -8,7 +8,7 @@ import com.Rakumo.metadata.object.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
-import org.springframework.grpc.server.service.GrpcService;
+import net.devh.boot.grpc.server.service.GrpcService;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,6 +20,7 @@ public class ObjectMetadataGrpcService extends ObjectServiceGrpc.ObjectServiceIm
 
     private final ObjectMetadataService objectMetadataService;
 
+    @Override
     public void createObject(CreateObjectRequest request, StreamObserver<ObjectResponse> responseObserver) {
         try {
             ObjectMetadataDTO dto = objectMetadataService.createObjectMetadata(
@@ -145,12 +146,6 @@ public class ObjectMetadataGrpcService extends ObjectServiceGrpc.ObjectServiceIm
         if (dto.getUpdatedAt() != null) {
             builder.setUpdatedAt(toTimestamp(dto.getUpdatedAt()));
         }
-
-        // Add versions if present
-//        if (dto.getVersions() != null && !dto.getVersions().isEmpty()) {
-//            dto.getVersions().forEach(version ->
-//                    builder.addVersions(toObjectVersionResponse(version)));
-//        }
 
         return builder.build();
     }

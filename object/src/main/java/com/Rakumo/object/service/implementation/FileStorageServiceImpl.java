@@ -1,325 +1,157 @@
 package com.Rakumo.object.service.implementation;
 
-import com.Rakumo.object.exception.*;
-import com.Rakumo.object.model.*;
+import com.Rakumo.object.entity.RegularObjectEntity;
+import com.Rakumo.object.exception.ChecksumMismatchException;
+import com.Rakumo.object.exception.ObjectNotFoundException;
+import com.Rakumo.object.repository.RegularObjectRepository;
 import com.Rakumo.object.service.FileStorageService;
-import com.Rakumo.object.util.*;
-import jakarta.annotation.PostConstruct;
+import com.Rakumo.object.util.ChecksumUtils;
+import com.Rakumo.object.util.ContentTypeResolver;
+import com.Rakumo.object.util.FilePathUtils;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.io.*;
-import java.nio.file.*;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.time.Instant;
+import java.util.UUID;
 
-@Service
 @Slf4j
+@Service
+@RequiredArgsConstructor
 public class FileStorageServiceImpl implements FileStorageService {
 
+    private final RegularObjectRepository regularObjectRepository;
+    private final ChecksumUtils checksumUtils;
+
     @Value("${storage.root:./storage}")
-    private String storageRootPath;
-
-    private Path storageRoot;
-    private Path tempRoot;
-    private final Map<String, List<ChunkMetadata>> uploadMetadataCache = new ConcurrentHashMap<>();
-
-    @PostConstruct
-    public void init() {
-        this.storageRoot = Paths.get(storageRootPath);
-        this.tempRoot = storageRoot.resolve(".tmp");
-
-        try {
-            FileUtils.createDirectory(storageRoot);
-            FileUtils.createDirectory(tempRoot);
-            log.info("Storage initialized at: {}", storageRoot);
-            log.info("Temp storage at: {}", tempRoot);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to create storage directories", e);
-        }
-    }
+    private String storageRoot;
 
     @Override
-    public void storeCompleteFile(LocalObjectReference ref, InputStream data)
+    public RegularObjectEntity storeFile(String ownerId, String bucketName, String objectKey, InputStream inputStream,
+                                         String contentType, String expectedChecksum)
             throws IOException, ChecksumMismatchException {
-
-        Path tempPath = createTempFile("upload-");
+        Path tempPath = createTempFile();
         try {
-            log.info("Storing new file: bucket={}, key={}", ref.getBucketName(), ref.getObjectKey());
+            // Copy to temp file first
+            Files.copy(inputStream, tempPath, StandardCopyOption.REPLACE_EXISTING);
 
-            // 1. Stream data to temp file
-            Files.copy(data, tempPath, StandardCopyOption.REPLACE_EXISTING);
-            log.debug("Stored temporary file at: {}", tempPath);
+            // Calculate actual checksum
+            String actualChecksum = checksumUtils.sha256(tempPath);
 
-            // 2. Verify checksum
-            if (ref.getChecksum() != null) {
-                String actualChecksum = ChecksumUtils.sha256(tempPath);
-                if (!actualChecksum.equals(ref.getChecksum())) {
-                    log.error("Checksum mismatch for {} (expected: {}, actual: {})",
-                            ref.getObjectKey(), ref.getChecksum(), actualChecksum);
-                    throw new ChecksumMismatchException("Checksum verification failed");
-                }
+            // Verify checksum if provided
+            if (expectedChecksum != null && !expectedChecksum.equals(actualChecksum)) {
+                throw new ChecksumMismatchException(
+                        String.format("Checksum mismatch. Expected: %s, Actual: %s", expectedChecksum, actualChecksum));
             }
 
-            // 3. Atomic move to final location
-            Path finalPath = resolveFinalPath(ref);
-            FileUtils.moveAtomic(tempPath, finalPath);
-            log.info("Successfully stored file at: {}", finalPath);
+            // Detect content type if not provided
+            String detectedContentType = contentType != null ? contentType :
+                    ContentTypeResolver.resolveFromFilename(objectKey);
 
-            // 4. Store content-type metadata
-            storeContentTypeMetadata(ref, finalPath);
+            // Create file metadata
+            String versionId = UUID.randomUUID().toString();
+            long fileSize = Files.size(tempPath);
 
+            // Resolve final path
+            Path finalPath = resolveFilePath(ownerId, bucketName, objectKey, actualChecksum);
+            Files.createDirectories(finalPath.getParent());
+
+            // Move to final location
+            Files.move(tempPath, finalPath, StandardCopyOption.REPLACE_EXISTING);
+
+            // Create and save entity
+            RegularObjectEntity entity = new RegularObjectEntity();
+            entity.setOwnerId(ownerId); // TODO: Get from authenticated context
+            entity.setBucketName(bucketName);
+            entity.setObjectKey(objectKey);
+            entity.setVersionId(versionId);
+            entity.setFileName(Paths.get(objectKey).getFileName().toString());
+            entity.setChecksum(actualChecksum);
+            entity.setSizeBytes(fileSize);
+            entity.setContentType(detectedContentType);
+            entity.setPhysicalPath(finalPath.toString());
+
+            RegularObjectEntity savedEntity = regularObjectRepository.save(entity);
+            log.info("Stored file: {}/{} ({} bytes)", bucketName, objectKey, fileSize);
+            return savedEntity;
         } finally {
-            silentDelete(tempPath);
+            Files.deleteIfExists(tempPath);
         }
     }
 
     @Override
-    public void storeChunk(FileChunkInfo chunk) throws IOException, ChecksumMismatchException {
-        Path chunkPath = resolveChunkPath(chunk);
+    public Resource retrieveFile(String bucketName, String objectKey, String versionId)
+            throws ObjectNotFoundException, IOException {
+        RegularObjectEntity entity = findObjectEntity(bucketName, objectKey, versionId);
+        Path filePath = Paths.get(entity.getPhysicalPath());
 
-        try (InputStream chunkData = chunk.getInputStream()) {
-            Path tempPath = createTempFile("chunk-");
-            try {
-                Files.copy(chunkData, tempPath);
-
-                if (chunk.getChecksum() != null && !ChecksumUtils.verify(tempPath, chunk.getChecksum())) {
-                    throw new ChecksumMismatchException("Chunk checksum mismatch");
-                }
-
-                FileUtils.moveAtomic(tempPath, chunkPath);
-            } finally {
-                silentDelete(tempPath);
-            }
-        }
-
-        updateChunkMetadata(chunk, chunkPath);
-    }
-
-    @Override
-    public void assembleChunks(String uploadId, LocalObjectReference finalRef)
-            throws IOException, IncompleteUploadException, ChecksumMismatchException {
-
-        Path finalPath = resolveFinalPath(finalRef);
-        Path assemblyTempPath = createTempFile("assembly-");
-
-        try {
-            log.info("Assembling chunks for upload {}", uploadId);
-
-            // 1. Load and verify chunks
-            List<ChunkMetadata> chunks = loadChunkMetadata(uploadId);
-            verifyChunkSequence(chunks);
-            validateAllChunks(chunks);
-
-            // 2. Stream concatenation (memory efficient)
-            try (OutputStream out = Files.newOutputStream(assemblyTempPath)) {
-                for (ChunkMetadata chunk : chunks) {
-                    try (InputStream chunkStream = Files.newInputStream(chunk.path())) {
-                        chunkStream.transferTo(out);
-                    }
-                    log.trace("Appended chunk {} ({} bytes)", chunk.index(), Files.size(chunk.path()));
-                }
-            }
-
-            // 3. Verify final checksum
-            if (finalRef.getChecksum() != null) {
-                String actualChecksum = ChecksumUtils.sha256(assemblyTempPath);
-                if (!actualChecksum.equals(finalRef.getChecksum())) {
-                    throw new ChecksumMismatchException("Final checksum mismatch for upload " + uploadId);
-                }
-            }
-
-            // 4. Atomic move and metadata
-            FileUtils.moveAtomic(assemblyTempPath, finalPath);
-            storeContentTypeMetadata(finalRef, finalPath);
-            log.info("Successfully assembled file at: {}", finalPath);
-
-        } finally {
-            silentDelete(assemblyTempPath);
-            cleanupUpload(uploadId);
-        }
-    }
-
-    @Override
-    public InputStream retrieveFile(LocalObjectReference ref) throws ObjectNotFoundException, IOException {
-        Path filePath = resolveFinalPath(ref);
         if (!Files.exists(filePath)) {
-            throw new ObjectNotFoundException("File not found: " + ref.getObjectKey());
+            throw new ObjectNotFoundException("Physical file not found: " + filePath);
         }
-        log.debug("Retrieving file: {}", filePath);
-        return new BufferedInputStream(Files.newInputStream(filePath));
+
+        Resource resource = new UrlResource(filePath.toUri());
+        if (!resource.exists() || !resource.isReadable()) {
+            throw new ObjectNotFoundException("Cannot read file: " + filePath);
+        }
+
+        return resource;
     }
 
     @Override
-    public void deleteFile(LocalObjectReference ref) throws IOException {
-        Path filePath = resolveFinalPath(ref);
+    @Transactional
+    public void deleteFile(String bucketName, String objectKey, String versionId)
+            throws ObjectNotFoundException, IOException {
+        RegularObjectEntity entity = findObjectEntity(bucketName, objectKey, versionId);
+        Path filePath = Paths.get(entity.getPhysicalPath());
+
+        // Delete physical file
         if (Files.exists(filePath)) {
-            log.info("Deleting file: {}", filePath);
             Files.delete(filePath);
-            cleanupEmptyParents(filePath);
-            deleteContentTypeMetadata(ref);
-        }
-    }
-
-    // ================ Metadata Management ================
-    private record ChunkMetadata(int index, Path path, String checksum) {}
-
-    private void storeContentTypeMetadata(LocalObjectReference ref, Path filePath) throws IOException {
-        String contentType = ContentTypeResolver.resolve(filePath);
-        Path metaPath = getMetadataPath(ref).resolveSibling("content-type");
-        Files.writeString(metaPath, contentType);
-    }
-
-    private String getContentTypeMetadata(LocalObjectReference ref) throws IOException {
-        Path metaPath = getMetadataPath(ref).resolveSibling("content-type");
-        if (Files.exists(metaPath)) {
-            return Files.readString(metaPath);
-        }
-        return ContentTypeResolver.resolveFromFilename(ref.getObjectKey());
-    }
-
-    private void deleteContentTypeMetadata(LocalObjectReference ref) {
-        try {
-            Path metaPath = getMetadataPath(ref).resolveSibling("content-type");
-            Files.deleteIfExists(metaPath);
-        } catch (IOException e) {
-            log.warn("Failed to delete content-type metadata: {}", e.getMessage());
-        }
-    }
-
-    private Path getMetadataPath(String uploadId) {
-        return tempRoot.resolve(uploadId).resolve("metadata.json");
-    }
-
-    private Path getMetadataPath(LocalObjectReference ref) throws IOException {
-        return resolveFinalPath(ref).getParent();
-    }
-
-    private void updateChunkMetadata(FileChunkInfo chunk, Path chunkPath) throws IOException {
-        String uploadId = chunk.getUploadId();
-        List<ChunkMetadata> chunks = uploadMetadataCache.computeIfAbsent(uploadId, k -> new ArrayList<>());
-
-        chunks.add(new ChunkMetadata(chunk.getChunkIndex(), chunkPath, chunk.getChecksum()));
-
-        // Persist to disk asynchronously or periodically
-        persistChunkMetadata(uploadId, chunks);
-    }
-
-    private void persistChunkMetadata(String uploadId, List<ChunkMetadata> chunks) throws IOException {
-        Path metadataPath = getMetadataPath(uploadId);
-        Path tempMetaPath = createTempFile("meta-");
-        try {
-            JsonUtils.write(tempMetaPath, chunks);
-            ensureParentExists(metadataPath);
-            FileUtils.moveAtomic(tempMetaPath, metadataPath);
-        } finally {
-            silentDelete(tempMetaPath);
-        }
-    }
-
-    private List<ChunkMetadata> loadChunkMetadata(String uploadId) throws IOException, IncompleteUploadException {
-        // Check cache first
-        List<ChunkMetadata> cached = uploadMetadataCache.get(uploadId);
-        if (cached != null) {
-            return cached;
         }
 
-        // Fallback to disk
-        Path metadataPath = getMetadataPath(uploadId);
-        if (!Files.exists(metadataPath)) {
-            throw new IncompleteUploadException("No metadata found for upload: " + uploadId);
-        }
-
-        List<ChunkMetadata> chunks = JsonUtils.readList(metadataPath, ChunkMetadata.class);
-        uploadMetadataCache.put(uploadId, chunks);
-        return chunks;
+        // Delete database record
+        regularObjectRepository.delete(entity);
+        log.info("Deleted file: {}/{}", bucketName, objectKey);
     }
 
-    // ================ Path Resolution ================
-    private Path resolveFinalPath(LocalObjectReference ref) throws IOException {
-        String safeBucket = FilePathUtils.sanitize(ref.getBucketName());
-        String safeKey = FilePathUtils.sanitize(ref.getObjectKey());
-        String safeVersion = FilePathUtils.sanitize(
-                ref.getVersionId() != null ? ref.getVersionId() : "latest"
+    private RegularObjectEntity findObjectEntity(String bucketName, String objectKey, String versionId)
+            throws ObjectNotFoundException {
+        RegularObjectEntity entity;
+        if (versionId != null) {
+            entity = regularObjectRepository.findByBucketAndKeyAndVersion(bucketName, objectKey, versionId)
+                    .orElseThrow(() -> new ObjectNotFoundException(
+                            String.format("Object not found: %s/%s (version: %s)", bucketName, objectKey, versionId)));
+        } else {
+            entity = regularObjectRepository.findByBucketNameAndObjectKey(bucketName, objectKey)
+                    .orElseThrow(() -> new ObjectNotFoundException(
+                            String.format("Object not found: %s/%s", bucketName, objectKey)));
+        }
+        return entity;
+    }
+
+    private Path resolveFilePath(String ownerId, String bucketName, String objectKey, String fileHash) {
+        return FilePathUtils.resolveRegularFilePath(
+                FilePathUtils.sanitize(ownerId), // userId - TODO: get from authenticated context
+                FilePathUtils.sanitize(bucketName),
+                objectKey,
+                fileHash
         );
-
-        Path finalPath = FilePathUtils.resolvePath(storageRoot, safeBucket, safeKey, safeVersion)
-                .resolve("data");
-
-        ensureParentExists(finalPath);
-        return finalPath;
     }
 
-    private Path resolveChunkPath(FileChunkInfo chunk) throws IOException {
-        String safeUploadId = FilePathUtils.sanitize(chunk.getUploadId());
-        Path chunkPath = tempRoot.resolve(safeUploadId)
-                .resolve(chunk.getChunkIndex() + ".chunk");
 
-        ensureParentExists(chunkPath);
-        return chunkPath;
-    }
-
-    // ================ Validation & Safety ================
-    private void validateAllChunks(List<ChunkMetadata> chunks) throws IOException, ChecksumMismatchException {
-        for (ChunkMetadata chunk : chunks) {
-            if (chunk.checksum() != null && !ChecksumUtils.verify(chunk.path(), chunk.checksum())) {
-                throw new ChecksumMismatchException("Chunk " + chunk.index() + " checksum mismatch");
-            }
-        }
-    }
-
-    private void verifyChunkSequence(List<ChunkMetadata> chunks) throws IncompleteUploadException {
-        Set<Integer> indices = chunks.stream()
-                .map(ChunkMetadata::index)
-                .collect(Collectors.toSet());
-
-        int expectedCount = indices.stream().max(Integer::compare).orElse(-1) + 1;
-        if (indices.size() != expectedCount) {
-            throw new IncompleteUploadException("Missing chunks. Expected: " +
-                    expectedCount + ", found: " + indices.size());
-        }
-    }
-
-    private void ensureParentExists(Path path) throws IOException {
-        FileUtils.createDirectory(path.getParent());
-    }
-
-    private Path createTempFile(String prefix) throws IOException {
-        return Files.createTempFile(tempRoot, prefix, ".tmp");
-    }
-
-    private void cleanupUpload(String uploadId) {
-        try {
-            Path uploadDir = tempRoot.resolve(uploadId);
-            if (Files.exists(uploadDir)) {
-                FileUtils.deleteDirectory(uploadDir);
-                uploadMetadataCache.remove(uploadId);
-                log.debug("Cleaned up upload directory: {}", uploadDir);
-            }
-        } catch (IOException e) {
-            log.warn("Failed to cleanup upload {}: {}", uploadId, e.getMessage());
-        }
-    }
-
-    private void cleanupEmptyParents(Path path) throws IOException {
-        Path parent = path.getParent();
-        while (!parent.equals(storageRoot) && !parent.equals(tempRoot)) {
-            if (Files.list(parent).count() == 0) {
-                Files.delete(parent);
-                parent = parent.getParent();
-            } else {
-                break;
-            }
-        }
-    }
-
-    private void silentDelete(Path path) {
-        try {
-            if (path != null) Files.deleteIfExists(path);
-        } catch (IOException e) {
-            log.warn("Failed to delete temp file {}: {}", path, e.getMessage());
-        }
+    private Path createTempFile() throws IOException {
+        Path tempDir = Paths.get(storageRoot, ".temp");
+        Files.createDirectories(tempDir);
+        return Files.createTempFile(tempDir, "upload-", ".tmp");
     }
 }

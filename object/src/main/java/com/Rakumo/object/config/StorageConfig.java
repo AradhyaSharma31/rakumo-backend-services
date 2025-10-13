@@ -1,16 +1,28 @@
 package com.Rakumo.object.config;
 
-import lombok.Data;
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 @Configuration
-@ConfigurationProperties(prefix =  "storage")
-@Data
 public class StorageConfig {
 
-    private Path root = Path.of("/data");
+    @Value("${storage.root:./storage}")
+    private String storageRoot;
 
+    @Value("${storage.temp:./storage/temp}")
+    private String tempRoot;
+
+    @Bean
+    public Path storageRootPath() {
+        return Paths.get(storageRoot);
+    }
+
+    @Bean
+    public Path tempRootPath() {
+        return Paths.get(tempRoot);
+    }
 }

@@ -1,3 +1,4 @@
+// File: src/main/java/com/Rakumo/object/dto/DownloadResponse.java
 package com.Rakumo.object.dto;
 
 import lombok.Builder;
@@ -12,9 +13,9 @@ public class DownloadResponse {
     private String bucketName;
     private String objectKey;
     private String versionId;
-    private InputStream dataStream;  // Actual file content
+    private InputStream dataStream;
     private String contentType;
-    private String checksum;         // SHA-256
-    private long contentLength;
+    private String checksum;
+    private Long contentLength;
     private Instant lastModified;
 }

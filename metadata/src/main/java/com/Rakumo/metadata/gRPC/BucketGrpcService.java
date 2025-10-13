@@ -8,10 +8,12 @@ import com.Rakumo.metadata.bucket.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
-import org.springframework.grpc.server.service.GrpcService;
+import net.devh.boot.grpc.server.service.GrpcService;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @GrpcService
 @RequiredArgsConstructor
@@ -105,8 +107,22 @@ public class BucketGrpcService extends BucketServiceGrpc.BucketServiceImplBase {
         }
     }
 
+    @Override
+    public void getUserBuckets(GetUserBucketsRequest request,
+                               StreamObserver<BucketListResponse> responseObserver) {
+        try {
+            List<BucketDTO> dtos = bucketService.GetUserBuckets(UUID.fromString(request.getOwnerId()));
+            responseObserver.onNext(toBucketListResponse(dtos));
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Delete failed: " + e.getMessage())
+                    .asRuntimeException());
+        }
+    }
+
     // make it private after testing is done
-    public BucketResponse toBucketResponse(BucketDTO dto) {
+    private BucketResponse toBucketResponse(BucketDTO dto) {
         return BucketResponse.newBuilder()
                 .setBucketId(dto.getBucketId().toString())
                 .setOwnerId(dto.getOwnerId().toString())
@@ -118,7 +134,15 @@ public class BucketGrpcService extends BucketServiceGrpc.BucketServiceImplBase {
                 .build();
     }
 
-    public Timestamp toTimestamp(Instant instant) {
+    private BucketListResponse toBucketListResponse(List<BucketDTO> dtos) {
+        return BucketListResponse.newBuilder()
+                .addAllBuckets(dtos.stream()
+                        .map(this::toBucketResponse)
+                        .collect(Collectors.toList()))
+                .build();
+    }
+
+    private Timestamp toTimestamp(Instant instant) {
         return Timestamp.newBuilder()
                 .setSeconds(instant.getEpochSecond())
                 .setNanos(instant.getNano())

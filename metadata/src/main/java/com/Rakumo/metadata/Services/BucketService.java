@@ -21,4 +21,6 @@ public interface BucketService {
 
     void deleteBucket(UUID bucketId, UUID ownerId)
                 throws BucketNotFoundException;
+
+    List<BucketDTO> GetUserBuckets(UUID ownerId);
 }

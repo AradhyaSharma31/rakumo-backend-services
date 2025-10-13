@@ -14,6 +14,5 @@ public interface CustomMetadataMapper {
 
     CustomMetadata toEntity(CustomMetadataDTO dto);
 
-    @Mapping(target = "versionId", ignore = true)
     com.Rakumo.metadata.object.version.custom.CustomMetadata toProto(CustomMetadataDTO dto);
 }

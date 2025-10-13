@@ -12,7 +12,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -109,5 +111,14 @@ public class BucketServiceImpl implements BucketService {
 
         bucketRepository.delete(bucket);
         log.debug("Bucket {} deleted successfully", bucketId);
+    }
+
+    @Override
+    public List<BucketDTO> GetUserBuckets(UUID ownerId) {
+        log.info("Listing buckets for owner: {}", ownerId);
+        List<Bucket> buckets = bucketRepository.findAllByOwnerId(ownerId);
+        return buckets.stream()
+                .map(bucketMapper::toDto)
+                .collect(Collectors.toList());
     }
 }

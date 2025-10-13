@@ -1,8 +1,8 @@
 package com.Rakumo.object.service.implementation;
 
 import com.Rakumo.object.exception.InvalidChunkException;
-import com.Rakumo.object.model.FileChunkInfo;
-import com.Rakumo.object.model.LocalObjectReference;
+import com.Rakumo.object.entity.FileChunkInfo;
+import com.Rakumo.object.entity.LocalObjectReference;
 import com.Rakumo.object.service.FileChunkService;
 import com.Rakumo.object.util.ChecksumUtils;
 import com.Rakumo.object.util.FilePathUtils;
@@ -27,8 +27,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class FileChunkServiceImpl implements FileChunkService {
 
-    @Value("${storage.temp.root:/tmp/uploads}")
+    @Value("${storage.root}/.tmp")
     private String tempRootPath;
+
     private Path tempRoot;
 
     @PostConstruct
@@ -49,8 +50,8 @@ public class FileChunkServiceImpl implements FileChunkService {
 
         try {
             FileUtils.createDirectory(uploadDir);
-
             Path metadataFile = uploadDir.resolve("metadata.json");
+
             Map<String, String> metadata = new HashMap<>();
             metadata.put("uploadId", uploadId);
             metadata.put("bucketName", ref.getBucketName());
@@ -59,7 +60,6 @@ public class FileChunkServiceImpl implements FileChunkService {
             metadata.put("lastActivity", Instant.now().toString());
 
             JsonUtils.write(metadataFile, metadata);
-
             log.info("Initiated multipart upload: {}", uploadId);
             return uploadId;
         } catch (IOException e) {
@@ -91,7 +91,6 @@ public class FileChunkServiceImpl implements FileChunkService {
         try {
             Path metadataFile = getMetadataPath(uploadId);
             if (Files.exists(metadataFile)) {
-                // FIXED: Explicit TypeReference
                 Map<String, String> metadata = JsonUtils.readValue(metadataFile,
                         new TypeReference<Map<String, String>>(){});
                 metadata.put("lastActivity", Instant.now().toString());
@@ -120,7 +119,6 @@ public class FileChunkServiceImpl implements FileChunkService {
     @Override
     public void cleanupStaleChunks(Duration olderThan) {
         Instant cutoff = Instant.now().minus(olderThan);
-
         try {
             if (!Files.exists(tempRoot)) return;
 
@@ -128,7 +126,6 @@ public class FileChunkServiceImpl implements FileChunkService {
                 try {
                     Path metadataFile = uploadDir.resolve("metadata.json");
                     if (Files.exists(metadataFile)) {
-                        // FIXED: Explicit TypeReference
                         Map<String, String> metadata = JsonUtils.readValue(metadataFile,
                                 new TypeReference<Map<String, String>>(){});
                         Instant lastActivity = Instant.parse(metadata.get("lastActivity"));
@@ -150,14 +147,13 @@ public class FileChunkServiceImpl implements FileChunkService {
     public void cleanupUpload(String uploadId) throws IOException {
         String safeUploadId = FilePathUtils.sanitize(uploadId);
         Path uploadDir = tempRoot.resolve(safeUploadId);
-
         if (Files.exists(uploadDir)) {
             FileUtils.deleteDirectory(uploadDir);
             log.info("Cleaned up upload: {}", uploadId);
         }
     }
 
-    // ================== Helper Methods ==================
+    // Helper Methods
     private Path getMetadataPath(String uploadId) {
         return tempRoot.resolve(FilePathUtils.sanitize(uploadId)).resolve("metadata.json");
     }
@@ -166,9 +162,11 @@ public class FileChunkServiceImpl implements FileChunkService {
         return tempRoot.resolve(FilePathUtils.sanitize(uploadId)).resolve("chunks.json");
     }
 
-    public Path getChunkPath(String uploadId, int chunkIndex) {
-        return tempRoot.resolve(FilePathUtils.sanitize(uploadId))
-                .resolve(FilePathUtils.sanitize(chunkIndex + ".chunk"));
+    public Path getChunkPath(String uploadId, int chunkIndex) throws IOException {
+        Path chunkPath = tempRoot.resolve(FilePathUtils.sanitize(uploadId))
+                .resolve(chunkIndex + "_chunk_" + ".part");
+        FileUtils.ensureDirectoryExists(chunkPath.getParent());
+        return chunkPath;
     }
 
     public void saveChunkMetadata(String uploadId, List<FileChunkInfo> chunks) throws IOException {
@@ -177,7 +175,7 @@ public class FileChunkServiceImpl implements FileChunkService {
     }
 
     public void addChunkMetadata(String uploadId, FileChunkInfo chunk) throws IOException {
-        List<FileChunkInfo> chunks = listChunks(uploadId);
+        List<FileChunkInfo> chunks = new ArrayList<>(listChunks(uploadId));  // mutable copy
         chunks.add(chunk);
         saveChunkMetadata(uploadId, chunks);
     }

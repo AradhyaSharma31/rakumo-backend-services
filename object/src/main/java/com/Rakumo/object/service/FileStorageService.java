@@ -1,25 +1,21 @@
 package com.Rakumo.object.service;
 
+import com.Rakumo.object.entity.RegularObjectEntity;
 import com.Rakumo.object.exception.ChecksumMismatchException;
-import com.Rakumo.object.exception.IncompleteUploadException;
 import com.Rakumo.object.exception.ObjectNotFoundException;
-import com.Rakumo.object.model.FileChunkInfo;
-import com.Rakumo.object.model.LocalObjectReference;
+import org.springframework.core.io.Resource;
 
 import java.io.IOException;
 import java.io.InputStream;
 
 public interface FileStorageService {
-
-    void storeCompleteFile(LocalObjectReference ref, InputStream data)
+    RegularObjectEntity storeFile(String ownerId, String bucketName, String objectKey, InputStream inputStream,
+                                  String contentType, String expectedChecksum)
             throws IOException, ChecksumMismatchException;
 
-    void storeChunk(FileChunkInfo chunk) throws IOException, ChecksumMismatchException;
+    Resource retrieveFile(String bucketName, String objectKey, String versionId)
+            throws ObjectNotFoundException, IOException;
 
-    void assembleChunks(String uploadId, LocalObjectReference finalRef)
-            throws IOException, IncompleteUploadException, ChecksumMismatchException;
-
-    InputStream retrieveFile(LocalObjectReference ref) throws ObjectNotFoundException, IOException;
-
-    void deleteFile(LocalObjectReference ref) throws IOException;
+    void deleteFile(String bucketName, String objectKey, String versionId)
+            throws ObjectNotFoundException, IOException;
 }

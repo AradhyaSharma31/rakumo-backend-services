@@ -10,12 +10,10 @@ import java.time.Instant;
 @Builder
 @AllArgsConstructor
 public class UploadResponse {
-
     private String bucketName;
     private String objectKey;
     private String versionId;
     private String checksum;
-    private long sizeBytes;
+    private Long sizeBytes;
     private Instant uploadedAt;
-
 }

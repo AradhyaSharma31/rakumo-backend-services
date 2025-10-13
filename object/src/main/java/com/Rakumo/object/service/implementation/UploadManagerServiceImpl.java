@@ -1,23 +1,32 @@
 package com.Rakumo.object.service.implementation;
 
-import com.Rakumo.object.dto.*;
-import com.Rakumo.object.exception.*;
-import com.Rakumo.object.grpc.MetadataGrpcClient;
-import com.Rakumo.object.model.*;
+import com.Rakumo.object.dto.UploadRequest;
+import com.Rakumo.object.dto.UploadResponse;
+import com.Rakumo.object.entity.FileChunkInfo;
+import com.Rakumo.object.entity.MultipartUploadEntity;
+import com.Rakumo.object.entity.RegularObjectEntity;
+import com.Rakumo.object.enumeration.UploadStatus;
+import com.Rakumo.object.exception.ChecksumMismatchException;
+import com.Rakumo.object.exception.MetadataServiceException;
+import com.Rakumo.object.repository.MultipartUploadRepository;
 import com.Rakumo.object.service.FileChunkService;
 import com.Rakumo.object.service.FileStorageService;
 import com.Rakumo.object.service.UploadManagerService;
 import com.Rakumo.object.util.ChecksumUtils;
-import com.Rakumo.object.util.ContentTypeResolver;
+import com.Rakumo.object.util.FileUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.SequenceInputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,219 +35,205 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UploadManagerServiceImpl implements UploadManagerService {
 
-    private static final long MEMORY_UPLOAD_THRESHOLD = 10 * 1024 * 1024; // 10MB
-
     private final FileStorageService fileStorageService;
     private final FileChunkService fileChunkService;
+    private final FileChunkServiceImpl fileChunkServiceImpl;
+    private final MultipartUploadRepository multipartUploadRepository;
     private final ChecksumUtils checksumUtils;
-    private final MetadataGrpcClient metadataClient;
 
-    @Value("${upload.memory-threshold:10485760}") // 10MB default
-    private long memoryUploadThreshold;
+    private static final long MEMORY_THRESHOLD = 10 * 1024 * 1024; // 10MB
 
     @Override
-    public UploadResponse handleRegularUpload(UploadFileRequest request)
+    @Transactional
+    public UploadResponse handleRegularUpload(UploadRequest request, InputStream fileData)
             throws IOException, MetadataServiceException {
-
         validateUploadRequest(request);
 
-        // For small files: read into memory for efficiency
-        byte[] bytes = request.getFileData().readAllBytes();
-        long size = bytes.length;
+        try {
+            // For small files, read into memory for efficiency
+            byte[] fileBytes = fileData.readAllBytes();
+            String checksum = checksumUtils.sha256(new ByteArrayInputStream(fileBytes));
 
-        if (size > memoryUploadThreshold) {
-            log.warn("Large file upload detected: {} bytes. Consider using multipart upload for better performance.", size);
-        }
+            if (fileBytes.length > MEMORY_THRESHOLD) {
+                log.warn("Large file upload detected: {} bytes. Consider multipart upload.", fileBytes.length);
+            }
 
-        try (InputStream checksumStream = new ByteArrayInputStream(bytes);
-             InputStream storageStream = new ByteArrayInputStream(bytes)) {
-
-            LocalObjectReference ref = createObjectReference(request);
-
-            // Calculate checksum
-            String checksum = checksumUtils.sha256(checksumStream);
-            ref.setChecksum(checksum);
-
-            // Detect content type
-            String contentType = ContentTypeResolver.resolveFromFilename(ref.getObjectKey());
-
-            // Store file
-            fileStorageService.storeCompleteFile(ref, storageStream);
-
-            // Record metadata
-            metadataClient.createObject(
-                    ref.getBucketName(),
-                    ref.getObjectKey(),
-                    ref.getVersionId(),
-                    ref.getChecksum(),
-                    size
+            // Store file using FileStorageService
+            RegularObjectEntity entity = fileStorageService.storeFile(
+                    request.getOwnerId(),
+                    request.getBucketName(),
+                    request.getObjectKey(),
+                    new ByteArrayInputStream(fileBytes),
+                    request.getContentType(),
+                    checksum
             );
 
-            log.info("Successfully uploaded file: {}/{} ({} bytes)",
-                    ref.getBucketName(), ref.getObjectKey(), size);
-
+            // Convert entity to response DTO
             return UploadResponse.builder()
-                    .bucketName(ref.getBucketName())
-                    .objectKey(ref.getObjectKey())
-                    .versionId(ref.getVersionId())
-                    .checksum(ref.getChecksum())
-                    .sizeBytes(size)
+                    .bucketName(entity.getBucketName())
+                    .objectKey(entity.getObjectKey())
+                    .versionId(entity.getVersionId())
+                    .checksum(entity.getChecksum())
+                    .sizeBytes(entity.getSizeBytes())
                     .uploadedAt(Instant.now())
                     .build();
-
-        } catch (ChecksumMismatchException e) {
-            throw new IOException("Upload checksum verification failed", e);
+        } catch (Exception e) {
+            log.error("Regular upload failed for {}/{}", request.getBucketName(), request.getObjectKey(), e);
+            throw new IOException("Upload failed: " + e.getMessage(), e);
         }
     }
 
     @Override
-    public String initiateMultipartUpload(UploadFileRequest request) {
+    @Transactional
+    public String initiateMultipartUpload(UploadRequest request) {
         validateUploadRequest(request);
+        String uploadId = UUID.randomUUID().toString();
 
-        LocalObjectReference ref = createObjectReference(request);
-        String uploadId = fileChunkService.initiateMultipartUpload(ref);
+        MultipartUploadEntity upload = MultipartUploadEntity.builder()
+                .uploadId(uploadId)
+                .userId(request.getOwnerId())
+                .bucketName(request.getBucketName())
+                .objectKey(request.getObjectKey())
+                .finalFilename(extractFilename(request.getObjectKey()))
+                .createdAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(24 * 60 * 60)) // 24 hours
+                .status(UploadStatus.IN_PROGRESS)
+                .build();
 
-        log.info("Initiated multipart upload: {} for {}/{}",
-                uploadId, ref.getBucketName(), ref.getObjectKey());
-
+        multipartUploadRepository.save(upload);
+        log.info("Initiated multipart upload: {}", uploadId);
         return uploadId;
     }
 
     @Override
-    public void processChunk(FileChunkInfo chunk)
-            throws InvalidChunkException, IOException, ChecksumMismatchException {
+    @Transactional
+    public void uploadChunk(String uploadId, int chunkIndex, InputStream chunkData) throws IOException {
+        MultipartUploadEntity upload = multipartUploadRepository.findById(uploadId)
+                .orElseThrow(() -> new IllegalArgumentException("Upload not found: " + uploadId));
 
-        validateChunk(chunk);
-
-        fileChunkService.validateChunk(chunk);
-
-        // Verify chunk checksum
-        if (chunk.getChecksum() != null) {
-            String actualChecksum = checksumUtils.sha256(chunk.getInputStream());
-            if (!actualChecksum.equals(chunk.getChecksum())) {
-                throw new ChecksumMismatchException("Chunk checksum mismatch for chunk " + chunk.getChunkIndex());
-            }
+        if (upload.getStatus() != UploadStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Upload is not in progress: " + uploadId);
         }
 
-        fileStorageService.storeChunk(chunk);
+        // Read chunk data
+        byte[] chunkBytes = chunkData.readAllBytes();
 
-        log.debug("Processed chunk {} for upload {}", chunk.getChunkIndex(), chunk.getUploadId());
-    }
+        // Calculate checksum
+        String actualChecksum = checksumUtils.sha256(new ByteArrayInputStream(chunkBytes));
 
-    @Override
-    public UploadResponse completeMultipartUpload(String uploadId)
-            throws IOException, IncompleteUploadException, ObjectNotFoundException,
-            MetadataServiceException, ChecksumMismatchException {
+        // Store chunk to filesystem
+        Path chunkPath = fileChunkServiceImpl.getChunkPath(uploadId, chunkIndex);
+        Files.write(chunkPath, chunkBytes);
 
-        if (uploadId == null || uploadId.trim().isEmpty()) {
-            throw new IllegalArgumentException("Upload ID cannot be null or empty");
-        }
-
-        List<FileChunkInfo> chunks = fileChunkService.listChunks(uploadId);
-        if (chunks.isEmpty()) {
-            throw new IncompleteUploadException("No chunks found for upload: " + uploadId);
-        }
-
-        FileChunkInfo firstChunk = chunks.get(0);
-        LocalObjectReference ref = LocalObjectReference.builder()
-                .bucketName(firstChunk.getBucketName())
-                .objectKey(firstChunk.getObjectKey())
-                .versionId(UUID.randomUUID().toString())
-                .build();
-
-        // Assemble file
-        fileStorageService.assembleChunks(uploadId, ref);
-
-        // Calculate final checksum
-        String finalChecksum;
-        try (InputStream finalFileStream = fileStorageService.retrieveFile(ref)) {
-            finalChecksum = checksumUtils.sha256(finalFileStream);
-            ref.setChecksum(finalChecksum);
-        }
-
-        long totalSize = chunks.stream().mapToLong(FileChunkInfo::getChunkSize).sum();
-        String contentType = ContentTypeResolver.resolveFromFilename(ref.getObjectKey());
-
-        // Record metadata
-        metadataClient.createObject(
-                ref.getBucketName(),
-                ref.getObjectKey(),
-                ref.getVersionId(),
-                ref.getChecksum(),
-                totalSize
-        );
-
-        // Cleanup this upload
-        fileChunkService.cleanupUpload(uploadId);
-
-        log.info("Completed multipart upload {} with {} chunks, total size: {} bytes",
-                uploadId, chunks.size(), totalSize);
-
-        return UploadResponse.builder()
-                .bucketName(ref.getBucketName())
-                .objectKey(ref.getObjectKey())
-                .versionId(ref.getVersionId())
-                .checksum(ref.getChecksum())
-                .sizeBytes(totalSize)
+        // Create chunk metadata
+        FileChunkInfo chunkInfo = FileChunkInfo.builder()
+                .uploadId(uploadId)
+                .chunkIndex(chunkIndex)
+                .chunkSize(chunkBytes.length)
+                .checksum(actualChecksum)
+                .bucketName(upload.getBucketName())
+                .objectKey(upload.getObjectKey())
+                .filePath(chunkPath.toString())
                 .uploadedAt(Instant.now())
                 .build();
+
+        // Add to chunk metadata
+        fileChunkServiceImpl.addChunkMetadata(uploadId, chunkInfo);
+        log.debug("Uploaded chunk {} for upload {}", chunkIndex, uploadId);
     }
 
     @Override
-    public DeleteRequest deleteObject(LocalObjectReference ref)
-            throws IOException, MetadataServiceException {
+    @Transactional
+    public UploadResponse completeMultipartUpload(String uploadId)
+            throws IOException, MetadataServiceException, ChecksumMismatchException {
+        MultipartUploadEntity upload = multipartUploadRepository.findById(uploadId)
+                .orElseThrow(() -> new IllegalArgumentException("Upload not found: " + uploadId));
 
-        if (ref == null) {
-            throw new IllegalArgumentException("Object reference cannot be null");
+        // Get all chunks in order
+        List<FileChunkInfo> chunks = fileChunkService.listChunks(uploadId);
+        if (chunks.isEmpty()) {
+            throw new IOException("No chunks found for upload: " + uploadId);
         }
 
-        fileStorageService.deleteFile(ref);
-        metadataClient.deleteObject(ref.getBucketName(), ref.getObjectKey());
+        // Assemble chunks into single input stream
+        InputStream assembledStream = assembleChunks(chunks);
 
-        log.info("Deleted object: {}/{}", ref.getBucketName(), ref.getObjectKey());
+        try {
+            // Store assembled file using FileStorageService
+            RegularObjectEntity entity = fileStorageService.storeFile(
+                    upload.getUserId(),
+                    upload.getBucketName(),
+                    upload.getObjectKey(),
+                    assembledStream,
+                    null, // Content type will be auto-detected
+                    null  // Checksum will be calculated
+            );
 
-        return new DeleteRequest(ref.getBucketName(), ref.getObjectKey(), ref.getVersionId());
+            // Update upload status
+            upload.setStatus(UploadStatus.COMPLETED);
+            multipartUploadRepository.save(upload);
+
+            // Cleanup temp files
+            fileChunkService.cleanupUpload(uploadId);
+
+            log.info("Completed multipart upload: {}", uploadId);
+            return UploadResponse.builder()
+                    .bucketName(entity.getBucketName())
+                    .objectKey(entity.getObjectKey())
+                    .versionId(entity.getVersionId())
+                    .checksum(entity.getChecksum())
+                    .sizeBytes(entity.getSizeBytes())
+                    .uploadedAt(Instant.now())
+                    .build();
+        } finally {
+            assembledStream.close();
+        }
     }
 
-    // ================ Validation Methods ================
-    private void validateUploadRequest(UploadFileRequest request) {
+    @Override
+    @Transactional
+    public void abortMultipartUpload(String uploadId) throws IOException {
+        MultipartUploadEntity upload = multipartUploadRepository.findById(uploadId)
+                .orElseThrow(() -> new IllegalArgumentException("Upload not found: " + uploadId));
+
+        // Clean up stored chunks
+        fileChunkService.cleanupUpload(uploadId);
+        multipartUploadRepository.delete(upload);
+        log.info("Aborted multipart upload: {}", uploadId);
+    }
+
+    private InputStream assembleChunks(List<FileChunkInfo> chunks) throws IOException {
+        if (chunks.isEmpty()) {
+            return new ByteArrayInputStream(new byte[0]);
+        }
+
+        // Create sequence of input streams from chunk files
+        List<InputStream> chunkStreams = chunks.stream()
+                .map(chunk -> {
+                    try {
+                        return Files.newInputStream(Path.of(chunk.getFilePath()));
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to read chunk: " + chunk.getFilePath(), e);
+                    }
+                })
+                .toList();
+
+        return new SequenceInputStream(Collections.enumeration(chunkStreams));
+    }
+
+    private void validateUploadRequest(UploadRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Upload request cannot be null");
         }
         if (request.getBucketName() == null || request.getBucketName().trim().isEmpty()) {
-            throw new IllegalArgumentException("Bucket name cannot be null or empty");
+            throw new IllegalArgumentException("Bucket name is required");
         }
         if (request.getObjectKey() == null || request.getObjectKey().trim().isEmpty()) {
-            throw new IllegalArgumentException("Object key cannot be null or empty");
-        }
-        if (request.getFileData() == null) {
-            throw new IllegalArgumentException("File data cannot be null");
+            throw new IllegalArgumentException("Object key is required");
         }
     }
 
-    private void validateChunk(FileChunkInfo chunk) {
-        if (chunk == null) {
-            throw new IllegalArgumentException("Chunk cannot be null");
-        }
-        if (chunk.getUploadId() == null || chunk.getUploadId().trim().isEmpty()) {
-            throw new IllegalArgumentException("Upload ID cannot be null or empty");
-        }
-        if (chunk.getChunkIndex() < 0) {
-            throw new IllegalArgumentException("Chunk index cannot be negative");
-        }
-        if (chunk.getBucketName() == null || chunk.getBucketName().trim().isEmpty()) {
-            throw new IllegalArgumentException("Bucket name cannot be null or empty");
-        }
-        if (chunk.getObjectKey() == null || chunk.getObjectKey().trim().isEmpty()) {
-            throw new IllegalArgumentException("Object key cannot be null or empty");
-        }
-    }
-
-    private LocalObjectReference createObjectReference(UploadFileRequest request) {
-        return LocalObjectReference.builder()
-                .bucketName(request.getBucketName())
-                .objectKey(request.getObjectKey())
-                .versionId(UUID.randomUUID().toString())
-                .build();
+    private String extractFilename(String objectKey) {
+        return java.nio.file.Paths.get(objectKey).getFileName().toString();
     }
 }

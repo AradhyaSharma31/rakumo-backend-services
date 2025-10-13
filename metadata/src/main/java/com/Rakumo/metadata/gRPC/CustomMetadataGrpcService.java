@@ -8,7 +8,7 @@ import com.Rakumo.metadata.object.version.custom.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
-import org.springframework.grpc.server.service.GrpcService;
+import net.devh.boot.grpc.server.service.GrpcService;
 
 import java.util.List;
 import java.util.UUID;

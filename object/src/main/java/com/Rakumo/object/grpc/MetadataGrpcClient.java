@@ -1,14 +1,15 @@
 package com.Rakumo.object.grpc;
 
+import com.Rakumo.metadata.bucket.*;
 import com.Rakumo.metadata.object.*;
+import com.Rakumo.metadata.object.DeleteResponse;
 import com.Rakumo.object.exception.MetadataServiceException;
 import com.Rakumo.object.exception.ObjectNotFoundException;
+import io.grpc.ManagedChannel;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.client.inject.GrpcClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -17,6 +18,31 @@ public class MetadataGrpcClient {
 
     @GrpcClient("metadata-service")
     private ObjectServiceGrpc.ObjectServiceBlockingStub objectServiceStub;
+
+    @GrpcClient("bucket-service")
+    private BucketServiceGrpc.BucketServiceBlockingStub bucketServiceStub;
+
+    public BucketListResponse userBucketList(String OwnerId) {
+        try {
+            log.debug("Retrieving buckets for user: {}", OwnerId);
+
+            GetUserBucketsRequest request = GetUserBucketsRequest.newBuilder()
+                    .setOwnerId(OwnerId)
+                    .build();
+
+            BucketListResponse response = bucketServiceStub.getUserBuckets(request);
+            log.info("Retrieved {} buckets for user: {}", response.getBucketsCount(), OwnerId);
+            return response;
+
+        } catch (StatusRuntimeException e) {
+            log.error("Failed to retrieve user buckets: owner={}, error={}",
+                    OwnerId, e.getStatus().getCode(), e);
+            throw new RuntimeException("Failed to retrieve user buckets: " + e.getStatus().getCode());
+        } catch (Exception e) {
+            log.error("Unexpected error retrieving user buckets: owner={}", OwnerId, e);
+            throw new RuntimeException("Unexpected error retrieving user buckets");
+        }
+    }
 
     /**
      * Create a new object in metadata service
