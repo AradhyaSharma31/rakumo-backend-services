@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package com.Rakumo.auth;
+
+option java_package = "com.Rakumo.auth.grpc";
+option java_multiple_files = true;
+option java_outer_classname = "AuthServiceProto";
+
+service AuthService {
+  // Authentication RPCs
+  rpc Register(RegisterRequest) returns (AuthResponse);
+  rpc Login(LoginRequest) returns (JwtResponse);
+  rpc VerifyEmail(EmailVerificationRequest) returns (AuthResponse);
+  rpc RefreshToken(RefreshTokenRequest) returns (JwtResponse);
+  rpc Logout(LogoutRequest) returns (MessageResponse);
+
+  // Token Validation (for other services)
+  rpc ValidateToken(ValidateTokenRequest) returns (TokenValidationResponse);
+  rpc GetUserFromToken(ValidateTokenRequest) returns (UserResponse);
+}
+
+// Request Messages
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string username = 3;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message EmailVerificationRequest {
+  string email = 1;
+  string otp = 2;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message LogoutRequest {
+  string refresh_token = 1;
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+// Response Messages
+message AuthResponse {
+  bool success = 1;
+  string message = 2;
+  AuthData data = 3;
+}
+
+message JwtResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  int64 expires_in = 3;
+  string token_type = 4;
+  string user_id = 5;
+  string email = 6;
+  repeated string roles = 7;
+}
+
+message MessageResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message TokenValidationResponse {
+  bool valid = 1;
+  string user_id = 2;
+  string email = 3;
+  repeated string roles = 4;
+  string error_message = 5;
+}
+
+message UserResponse {
+  string id = 1;
+  string email = 2;
+  string username = 3;
+  bool is_enabled = 4;
+  repeated string roles = 5;
+  string created_at = 6;
+  string updated_at = 7;
+}
+
+// Nested message for AuthResponse data
+message AuthData {
+  string qr_code_url = 1;
+  string secret_key = 2;
+  string user_id = 3;
+  string email = 4;
+}
