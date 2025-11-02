@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package com.Rakumo.gateway;
+
+option java_package = "com.Rakumo.gateway.grpc";
+
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_outer_classname = "UploadManagerProto";
+
+service UploadManagerServiceProto {
+  rpc HandleRegularUpload (UploadFileRequestMessage) returns (UploadResponseMessage);
+  rpc InitiateMultipartUpload (InitiateMultipartRequestMessage) returns (InitiateMultipartResponseMessage);
+  rpc UploadChunk (UploadChunkRequestMessage) returns (UploadChunkResponseMessage);
+  rpc CompleteMultipartUpload (CompleteMultipartRequestMessage) returns (UploadResponseMessage);
+  rpc AbortMultipartUpload (AbortMultipartRequestMessage) returns (AbortMultipartResponseMessage);
+}
+
+message UploadFileRequestMessage {
+  string bucket_name = 1;
+  string object_key = 2;
+  string owner_id = 3;
+  string content_type = 4;
+  bytes file_data = 5;
+}
+
+message InitiateMultipartRequestMessage {
+  string bucket_name = 1;
+  string object_key = 2;
+  string owner_id = 3;
+  string content_type = 4;
+}
+
+message InitiateMultipartResponseMessage {
+  string upload_id = 1;
+}
+
+message UploadChunkRequestMessage {
+  string upload_id = 1;
+  int32 chunk_index = 2;
+  bytes chunk_data = 3;
+}
+
+message UploadChunkResponseMessage {
+  bool success = 1;
+  int32 chunk_index = 2;
+  string upload_id = 3;
+}
+
+message CompleteMultipartRequestMessage {
+  string upload_id = 1;
+}
+
+message AbortMultipartRequestMessage {
+  string upload_id = 1;
+}
+
+message AbortMultipartResponseMessage {
+  bool success = 1;
+  string upload_id = 2;
+}
+
+message UploadResponseMessage {
+  string bucket_name = 1;
+  string object_key = 2;
+  string version_id = 3;
+  string checksum = 4;
+  int64 size_bytes = 5;
+  google.protobuf.Timestamp uploaded_at = 6;
+}

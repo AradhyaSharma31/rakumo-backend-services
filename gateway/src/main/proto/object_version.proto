@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package com.Rakumo.gateway;
+
+option java_package = "com.Rakumo.gateway.grpc";
+
+import "google/protobuf/timestamp.proto";
+import "bucket.proto";
+import "custom_metadata.proto";
+
+option java_multiple_files = true;
+option java_outer_classname = "ObjectVersionProto";
+
+service ObjectVersionService {
+  rpc CreateVersion (CreateVersionRequest) returns (VersionResponse);
+  rpc GetVersion (GetVersionRequest) returns (VersionResponse);
+  rpc GetObjectVersions (GetObjectVersionsRequest) returns (VersionListResponse);
+  rpc UpdateVersion (UpdateVersionRequest) returns (VersionResponse);
+  rpc DeleteVersion (DeleteVersionRequest) returns (DeleteResponse);
+}
+
+message CreateVersionRequest {
+  string object_id = 1;
+  string etag = 2;
+  string storage_location = 3;
+  int64 size = 4;
+  string content_type = 5;
+  bool is_delete_marker = 6;
+  string storage_class = 7;
+  repeated CustomMetadata custom_metadata = 8;
+}
+
+message GetVersionRequest {
+  string object_id = 1;
+  string version_id = 2;
+}
+
+message GetObjectVersionsRequest {
+  string object_id = 1;
+}
+
+message UpdateVersionRequest {
+  string version_id = 1;
+  string object_id = 2;
+  string etag = 3;
+  string storage_location = 4;
+  int64 size = 5;
+  string content_type = 6;
+  bool is_delete_marker = 7;
+  string storage_class = 8;
+}
+
+message DeleteVersionRequest {
+  string object_id = 1;
+  string version_id = 2;
+}
+
+message VersionResponse {
+  string version_id = 1;
+  string object_id = 2;
+  string etag = 3;
+  string storage_location = 4;
+  int64 size = 5;
+  string content_type = 6;
+  google.protobuf.Timestamp created_at = 7;
+  bool is_delete_marker = 8;
+  string storage_class = 9;
+  repeated CustomMetadata custom_metadata = 10;
+}
+
+message VersionListResponse {
+  repeated VersionResponse versions = 1;
+}

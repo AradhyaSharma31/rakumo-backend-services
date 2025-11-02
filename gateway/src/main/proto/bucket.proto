@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package com.Rakumo.gateway;
+
+option java_package = "com.Rakumo.gateway.grpc";
+
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_outer_classname = "BucketProto";
+
+service BucketService {
+  rpc CreateBucket (CreateBucketRequest) returns (BucketResponse);
+  rpc GetBucket (GetBucketRequest) returns (BucketResponse);
+  rpc GetUserBuckets (GetUserBucketsRequest) returns (BucketListResponse);
+  rpc UpdateBucket (UpdateBucketRequest) returns (BucketResponse);
+  rpc DeleteBucket (DeleteBucketRequest) returns (DeleteResponse);
+}
+
+message CreateBucketRequest {
+  string owner_id = 1;
+  string name = 2;
+  bool versioning_enabled = 3;
+  string region = 4;
+}
+
+message GetBucketRequest {
+  string owner_id = 1;
+  string bucket_id = 2;
+}
+
+message GetUserBucketsRequest {
+  string owner_id = 1;
+}
+
+message UpdateBucketRequest {
+  string owner_id = 1;
+  string bucket_id = 2;
+  string name = 3;
+  bool versioning_enabled = 4;
+  string region = 5;
+}
+
+message DeleteBucketRequest {
+  string owner_id = 1;
+  string bucket_id = 2;
+}
+
+message BucketResponse {
+  string bucket_id = 1;
+  string owner_id = 2;
+  string name = 3;
+  google.protobuf.Timestamp created_at = 4;
+  bool versioning_enabled = 5;
+  string region = 6;
+  repeated ObjectMetadata objects = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message BucketListResponse {
+  repeated BucketResponse buckets = 1;
+}
+
+message DeleteResponse {  // potentially common
+  bool success = 1;
+  string message = 2;
+}
+
+message ObjectMetadata {
+  string id = 1;
+  string bucket_id = 2;
+  google.protobuf.Timestamp createdAt = 3;
+  string object_key = 4;
+  string latest_version_id = 5;
+  string latest_etag = 6;
+  int64 latest_size = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  bool is_deleted = 9;
+}

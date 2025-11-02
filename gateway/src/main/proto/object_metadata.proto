@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package com.Rakumo.gateway;
+
+option java_package = "com.Rakumo.gateway.grpc";
+
+import "google/protobuf/timestamp.proto";
+import "bucket.proto";
+
+option java_multiple_files = true;
+option java_outer_classname = "ObjectProto";
+
+service ObjectService {
+  rpc CreateObject (CreateObjectRequest) returns (ObjectResponse);
+  rpc GetObject (GetObjectRequest) returns (ObjectResponse);
+  rpc GetBucketObjects (GetBucketObjectsRequest) returns (ObjectListResponse);
+  rpc UpdateObject (UpdateObjectRequest) returns (ObjectResponse);
+  rpc DeleteObject (DeleteObjectRequest) returns (DeleteResponse);
+}
+
+message CreateObjectRequest {
+  string bucket_id = 1;
+  string object_key = 2;
+  string latest_version_id = 3;
+  string latest_etag = 4;
+  int64 latest_size = 5;
+}
+
+message GetObjectRequest {
+  string bucket_id = 1;
+  string object_id = 2;
+}
+
+message GetBucketObjectsRequest {
+  string bucket_id = 1;
+}
+
+message UpdateObjectRequest {
+  string object_id = 1;
+  string bucket_id = 2;
+  string latest_version_id = 3;
+  string latest_etag = 4;
+  int64 latest_size = 5;
+  bool is_deleted = 6;
+}
+
+message DeleteObjectRequest {
+  string bucket_id = 1;
+  string object_id = 2;
+}
+
+message ObjectResponse {
+  string id = 1;
+  string bucket_id = 2;
+  string object_key = 3;
+  string latest_version_id = 4;
+  string latest_etag = 5;
+  int64 latest_size = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  bool is_deleted = 9;
+  repeated ObjectVersion versions = 10;
+}
+
+message ObjectListResponse {
+  repeated ObjectResponse objects = 1;
+}
+
+message ObjectVersion {
+  string version_id = 1;
+  string object_id = 2;
+  string etag = 3;
+  int64 size = 4;
+  google.protobuf.Timestamp created_at = 5;
+  bool is_latest = 6;
+}
