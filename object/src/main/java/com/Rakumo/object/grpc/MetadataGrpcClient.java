@@ -5,7 +5,6 @@ import com.Rakumo.metadata.object.*;
 import com.Rakumo.metadata.object.DeleteResponse;
 import com.Rakumo.object.exception.MetadataServiceException;
 import com.Rakumo.object.exception.ObjectNotFoundException;
-import io.grpc.ManagedChannel;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
@@ -47,11 +46,12 @@ public class MetadataGrpcClient {
     /**
      * Create a new object in metadata service
      */
-    public ObjectResponse createObject(String bucketId, String objectKey, String versionId, String etag, long size) throws MetadataServiceException {
+    public ObjectResponse createObject(String id, String bucketId, String objectKey, String versionId, String etag, long size) throws MetadataServiceException {
         try {
             log.debug("Creating object metadata: bucket={}, key={}, version={}", bucketId, objectKey, versionId);
 
             CreateObjectRequest request = CreateObjectRequest.newBuilder()
+                    .setId(id)
                     .setBucketId(bucketId)
                     .setObjectKey(objectKey)
                     .setLatestVersionId(versionId)

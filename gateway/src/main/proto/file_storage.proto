@@ -1,12 +1,11 @@
 syntax = "proto3";
 
-package com.Rakumo.gateway;
-
-option java_package = "com.Rakumo.gateway.grpc";
+package com.Rakumo.object.storage;
 
 import "google/protobuf/empty.proto";
 
 option java_multiple_files = true;
+option java_package = "com.Rakumo.object.storage";
 option java_outer_classname = "FileStorageProto";
 
 service FileStorageServiceProto {
@@ -16,8 +15,8 @@ service FileStorageServiceProto {
 }
 
 message StoreFileRequestMessage {
-  string owner_id = 1;              // Added owner_id field
-  string bucket_name = 2;           // Updated field numbers
+  string owner_id = 1;
+  string bucket_name = 2;
   string object_key = 3;
   bytes file_data = 4;
   string content_type = 5;
@@ -44,9 +43,10 @@ message FileChunkMessage {
 }
 
 message DeleteFileRequestMessage {
-  string bucket_name = 1;
-  string object_key = 2;
-  string version_id = 3;
+  string owner_id = 1;
+  string bucket_name = 2;
+  string object_key = 3;
+  string file_id = 4;
 }
 
 message DeleteFileResponseMessage {

@@ -19,7 +19,6 @@ import java.util.UUID;
 public class ObjectMetadata {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID Id;
     private String objectKey;
     private String latestVersionId;

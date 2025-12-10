@@ -8,6 +8,8 @@ import com.Rakumo.object.exception.ChecksumMismatchException;
 import com.Rakumo.object.exception.ObjectNotFoundException;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.server.service.GrpcService;
@@ -141,21 +143,23 @@ public class FileStorageGrpcService extends FileStorageServiceProtoGrpc.FileStor
 
     @Override
     public void deleteFile(DeleteFileRequestMessage request,
-                           StreamObserver<DeleteFileResponseMessage> responseObserver) {
+                                     StreamObserver<DeleteFileResponseMessage> responseObserver) {
         try {
             // Validate request
-            if (request.getBucketName().isEmpty() || request.getObjectKey().isEmpty()) {
+            if (request.getBucketName().isEmpty() || request.getObjectKey().isEmpty() ||
+                    request.getFileId().isEmpty()) {
                 responseObserver.onError(Status.INVALID_ARGUMENT
-                        .withDescription("Bucket name and object key are required")
+                        .withDescription("Bucket name, object key, and file hash are required")
                         .asRuntimeException());
                 return;
             }
 
-            // Delete file using storage service
+            // Delete file using checksum-based path
             fileStorageService.deleteFile(
+                    request.getOwnerId(),
                     request.getBucketName(),
                     request.getObjectKey(),
-                    request.getVersionId().isEmpty() ? null : request.getVersionId()
+                    request.getFileId()
             );
 
             // Build response
@@ -172,14 +176,90 @@ public class FileStorageGrpcService extends FileStorageServiceProtoGrpc.FileStor
                     .withDescription("File not found: " + e.getMessage())
                     .asRuntimeException());
         } catch (IOException e) {
-            log.error("File deletion failed", e);
+            log.error("File deletion by checksum failed", e);
             responseObserver.onError(Status.INTERNAL
                     .withDescription("Deletion failed: " + e.getMessage())
                     .asRuntimeException());
         } catch (Exception e) {
-            log.error("Unexpected error in file deletion", e);
+            log.error("Unexpected error in file deletion by checksum", e);
             responseObserver.onError(Status.INTERNAL
                     .withDescription("Internal error: " + e.getMessage())
+                    .asRuntimeException());
+        }
+    }
+
+    @Override
+    public void deleteObjectsInBucket(DeleteObjectsInBucketRequest request,
+                                      StreamObserver<DeleteObjectsInBucketResponse> responseObserver) {
+
+        // Validate request
+        if (request.getOwnerId().isEmpty() || request.getBucketId().isEmpty() ||
+                request.getFileIdList().isEmpty() || request.getObjectKeysList().isEmpty()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Bucket name, object key, and file hash are required")
+                    .asRuntimeException());
+            return;
+        }
+
+        // Validate lists have same size
+        if (request.getFileIdList().size() != request.getObjectKeysList().size()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("file_ids and object_keys lists must have same size")
+                    .asRuntimeException());
+            return;
+        }
+
+        int deletedCount = 0;
+        List<String> failedFiles = new ArrayList<>();
+        List<String> failedReasons = new ArrayList<>();  // Track why each failed
+
+        try {
+            for (int i = 0; i < request.getFileIdList().size(); i++) {
+                String objectKey = request.getObjectKeysList().get(i);
+                String fileId = request.getFileIdList().get(i);
+
+                try {
+                    // Delete file
+                    fileStorageService.deleteFile(request.getOwnerId(), request.getBucketId(), objectKey, fileId);
+                    deletedCount++;
+                    log.debug("Successfully deleted file: {} from bucket: {}", objectKey, request.getBucketId());
+
+                } catch (ObjectNotFoundException e) {
+                    log.warn("File not found: {}/{}", request.getBucketId(), objectKey);
+                    failedFiles.add(objectKey);
+                    failedReasons.add("NOT_FOUND: " + e.getMessage());
+
+                } catch (IOException e) {
+                    log.error("IO error deleting file: {}/{}", request.getBucketId(), objectKey, e);
+                    failedFiles.add(objectKey);
+                    failedReasons.add("IO_ERROR: " + e.getMessage());
+
+                } catch (Exception e) {
+                    log.error("Unexpected error deleting file: {}/{}", request.getBucketId(), objectKey, e);
+                    failedFiles.add(objectKey);
+                    failedReasons.add("INTERNAL: " + e.getMessage());
+                }
+            }
+
+            // Build response
+            DeleteObjectsInBucketResponse.Builder responseBuilder = DeleteObjectsInBucketResponse.newBuilder()
+                    .setDeletedCount(deletedCount)
+                    .addAllFailedDeletions(failedFiles);
+
+            // error message if any failures
+            if (!failedFiles.isEmpty()) {
+                log.warn("{} deletions failed. First error: {}", failedFiles.size(), failedReasons.get(0));
+            }
+
+            // Send response
+            responseObserver.onNext(responseBuilder.build());
+            responseObserver.onCompleted();
+
+        } catch (Exception e) {
+            // Catch any unexpected errors in the overall process
+            log.error("Unexpected error in batch delete operation", e);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Batch delete failed: " + e.getMessage())
                     .asRuntimeException());
         }
     }

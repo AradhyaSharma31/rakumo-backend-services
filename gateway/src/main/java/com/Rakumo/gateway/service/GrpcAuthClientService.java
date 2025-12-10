@@ -1,6 +1,6 @@
 package com.Rakumo.gateway.service;
 
-import com.Rakumo.gateway.grpc.*;
+import com.Rakumo.auth.grpc.*;
 import io.grpc.StatusRuntimeException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

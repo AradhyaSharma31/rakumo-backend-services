@@ -1,7 +1,5 @@
 package com.Rakumo.object.util;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -26,27 +24,8 @@ public class FilePathUtils {
                 .resolve(fileName);
     }
 
-
-    // Multipart temp files
-    public static Path resolveMultipartPath(String userId, String uploadId) {
-        return Paths.get("Object-Storage")
-                .resolve(userId)
-                .resolve("Multipart-Temp")
-                .resolve(uploadId);
-    }
-
-    public static Path resolveChunkPath(String userId, String uploadId, int chunkIndex) {
-        return resolveMultipartPath(userId, uploadId)
-                .resolve(String.format("%05d.chunk", chunkIndex));
-    }
-
     public static String sanitize(String input) {
         return input.replaceAll(ILLEGAL_CHARS, "_");
-    }
-
-    public static void ensureDirectoryExists(Path path) throws IOException {
-        if (!Files.exists(path))
-            Files.createDirectories(path);
     }
 
 }

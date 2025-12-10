@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,5 +21,14 @@ public interface RegularObjectRepository extends JpaRepository<RegularObjectEnti
             @Param("objectKey") String objectKey,
             @Param("versionId") String versionId);
 
-    Optional<RegularObjectEntity> findByBucketNameAndObjectKey(String bucketName, String objectKey);
+    @Query("SELECT r.checksum FROM RegularObjectEntity r WHERE r.id = :id")
+    String getChecksumById(UUID id);
+
+    @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END " +
+            "FROM RegularObjectEntity r " +
+            "WHERE r.bucketName = :bucketId AND r.checksum = :checksum")
+    boolean existsByChecksumAndBucketId(
+            @Param("checksum") String checksum,
+            @Param("bucketId") String bucketId
+    );
 }

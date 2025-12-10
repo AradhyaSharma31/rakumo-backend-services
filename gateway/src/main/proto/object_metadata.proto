@@ -1,13 +1,11 @@
 syntax = "proto3";
 
-package com.Rakumo.gateway;
-
-option java_package = "com.Rakumo.gateway.grpc";
+package com.Rakumo.metadata.object;
 
 import "google/protobuf/timestamp.proto";
-import "bucket.proto";
 
 option java_multiple_files = true;
+option java_package = "com.Rakumo.metadata.object";
 option java_outer_classname = "ObjectProto";
 
 service ObjectService {
@@ -47,6 +45,11 @@ message UpdateObjectRequest {
 message DeleteObjectRequest {
   string bucket_id = 1;
   string object_id = 2;
+}
+
+message DeleteResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 message ObjectResponse {

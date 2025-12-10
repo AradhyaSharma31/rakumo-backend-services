@@ -24,7 +24,8 @@ public class ObjectMetadataGrpcService extends ObjectServiceGrpc.ObjectServiceIm
     public void createObject(CreateObjectRequest request, StreamObserver<ObjectResponse> responseObserver) {
         try {
             ObjectMetadataDTO dto = objectMetadataService.createObjectMetadata(
-              UUID.fromString(request.getBucketId()),
+                    UUID.fromString(request.getId()),
+                    UUID.fromString(request.getBucketId()),
                     request.getObjectKey(),
                     request.getLatestVersionId(),
                     request.getLatestEtag(),

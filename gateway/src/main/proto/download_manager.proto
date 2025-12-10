@@ -1,12 +1,11 @@
 syntax = "proto3";
 
-package com.Rakumo.gateway;
-
-option java_package = "com.Rakumo.gateway.grpc";
+package com.Rakumo.object.download;
 
 import "google/protobuf/timestamp.proto";
 
 option java_multiple_files = true;
+option java_package = "com.Rakumo.object.download";
 option java_outer_classname = "DownloadManagerProto";
 
 service DownloadManagerServiceProto {

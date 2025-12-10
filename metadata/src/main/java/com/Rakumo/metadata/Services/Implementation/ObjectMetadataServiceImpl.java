@@ -36,13 +36,14 @@ public class ObjectMetadataServiceImpl implements ObjectMetadataService {
 
     @Override
     @Transactional
-    public ObjectMetadataDTO createObjectMetadata(UUID bucketId, String objectKey, String latestVersionId, String latestEtag, long latestSize) {
+    public ObjectMetadataDTO createObjectMetadata(UUID id, UUID bucketId, String objectKey, String latestVersionId, String latestEtag, long latestSize) {
         log.info("Creating object in bucket: {}", bucketId);
 
         Bucket bucket = bucketRepo.findById(bucketId)
                 .orElseThrow(() -> new IllegalArgumentException("Bucket not found: " + bucketId));
 
         ObjectMetadata objectMetadata = new ObjectMetadata();
+        objectMetadata.setId(id);
         objectMetadata.setBucket(bucket);
         objectMetadata.setObjectKey(objectKey);
         objectMetadata.setLatestVersionId(latestVersionId);

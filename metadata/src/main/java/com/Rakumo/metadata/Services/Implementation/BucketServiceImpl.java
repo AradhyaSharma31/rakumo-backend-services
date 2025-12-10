@@ -2,11 +2,17 @@ package com.Rakumo.metadata.Services.Implementation;
 
 import com.Rakumo.metadata.DTO.BucketDTO;
 import com.Rakumo.metadata.Exceptions.BucketNotFoundException;
+import com.Rakumo.metadata.Exceptions.ObjectDeletionException;
 import com.Rakumo.metadata.Exceptions.UnauthorizedAccessException;
 import com.Rakumo.metadata.Mapper.BucketMapper;
 import com.Rakumo.metadata.Models.Bucket;
+import com.Rakumo.metadata.Models.ObjectMetadata;
 import com.Rakumo.metadata.Repository.BucketRepo;
+import com.Rakumo.metadata.Repository.ObjectMetadataRepo;
 import com.Rakumo.metadata.Services.BucketService;
+import com.Rakumo.metadata.gRPC.ObjectGrpcClient;
+import com.Rakumo.object.storage.DeleteObjectsInBucketResponse;
+import java.util.ArrayList;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,11 +28,16 @@ public class BucketServiceImpl implements BucketService {
 
     private final BucketRepo bucketRepository;
     private final BucketMapper bucketMapper;
+    private final ObjectGrpcClient objectGrpcClient;
+    private final ObjectMetadataRepo objectMetadataRepo;
 
     public BucketServiceImpl(BucketRepo bucketRepository,
-                             BucketMapper bucketMapper) {
+                             BucketMapper bucketMapper, ObjectGrpcClient objectGrpcClient,
+                             ObjectMetadataRepo objectMetadataRepo) {
         this.bucketRepository = bucketRepository;
         this.bucketMapper = bucketMapper;
+        this.objectGrpcClient = objectGrpcClient;
+        this.objectMetadataRepo = objectMetadataRepo;
     }
 
     @Override
@@ -93,11 +104,12 @@ public class BucketServiceImpl implements BucketService {
     }
 
     @Override
-    @Transactional
     public void deleteBucket(UUID ownerId, UUID bucketId)
-            throws BucketNotFoundException, UnauthorizedAccessException {
+            throws BucketNotFoundException, UnauthorizedAccessException, ObjectDeletionException {
+
         log.info("Deleting bucket {} for owner {}", bucketId, ownerId);
 
+        // 1. Find bucket with validation
         Bucket bucket = bucketRepository.findById(bucketId)
                 .orElseThrow(() -> {
                     log.warn("Delete failed - bucket not found: {}", bucketId);
@@ -109,8 +121,47 @@ public class BucketServiceImpl implements BucketService {
             throw new UnauthorizedAccessException("Delete permission denied");
         }
 
+        // 2. Get ALL objects in bucket with ONE query
+        List<ObjectMetadata> objects = objectMetadataRepo.findByBucket_BucketId(bucketId);
+
+        if (!objects.isEmpty()) {
+            // 3. Prepare lists
+            List<String> objectKeys = new ArrayList<>();
+            List<String> fileIds = new ArrayList<>();
+
+            for (ObjectMetadata obj : objects) {
+                objectKeys.add(obj.getObjectKey());
+                fileIds.add(obj.getId().toString());
+            }
+
+            // 4. Delete objects via gRPC and CHECK RESPONSE
+            DeleteObjectsInBucketResponse response = objectGrpcClient.DeleteObjectsInBucket(
+                    ownerId.toString(),
+                    bucketId.toString(),
+                    objectKeys,
+                    fileIds
+            );
+
+            // 5. Validate all objects were deleted
+            if (response.getDeletedCount() != objectKeys.size()) {
+                String errorMsg = String.format(
+                        "Failed to delete all objects. Deleted %d/%d. Failures: %s",
+                        response.getDeletedCount(),
+                        objectKeys.size(),
+                        response.getFailedDeletionsList()
+                );
+                log.error(errorMsg);
+                throw new ObjectDeletionException(errorMsg);
+            }
+        }
+
+        // 6. Delete bucket (only if all objects deleted successfully)
         bucketRepository.delete(bucket);
-        log.debug("Bucket {} deleted successfully", bucketId);
+        log.info("Bucket {} deleted successfully", bucketId);
+
+        // Force flush
+        bucketRepository.flush();
+        log.info("Transaction committed successfully");
     }
 
     @Override

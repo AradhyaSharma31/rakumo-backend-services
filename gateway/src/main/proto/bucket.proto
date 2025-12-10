@@ -1,12 +1,11 @@
 syntax = "proto3";
 
-package com.Rakumo.gateway;
-
-option java_package = "com.Rakumo.gateway.grpc";
+package com.Rakumo.metadata.bucket;
 
 import "google/protobuf/timestamp.proto";
 
 option java_multiple_files = true;
+option java_package = "com.Rakumo.metadata.bucket";
 option java_outer_classname = "BucketProto";
 
 service BucketService {
@@ -61,7 +60,7 @@ message BucketListResponse {
   repeated BucketResponse buckets = 1;
 }
 
-message DeleteResponse {  // potentially common
+message DeleteResponse {
   bool success = 1;
   string message = 2;
 }

@@ -82,6 +82,32 @@
 			<version>${grpc.version}</version>
 		</dependency>
 
+		<!-- Spring Boot gRPC Starter (Netty-based) - WITH EXCLUSIONS -->
+		<dependency>
+			<groupId>net.devh</groupId>
+			<artifactId>grpc-server-spring-boot-starter</artifactId>
+			<version>${grpc-spring-boot.version}</version>
+			<exclusions>
+				<!-- EXCLUDE the shaded netty to avoid version conflicts -->
+				<exclusion>
+					<groupId>io.grpc</groupId>
+					<artifactId>grpc-netty-shaded</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>net.devh</groupId>
+			<artifactId>grpc-client-spring-boot-starter</artifactId>
+			<version>${grpc-spring-boot.version}</version>
+			<exclusions>
+				<!-- EXCLUDE the shaded netty to avoid version conflicts -->
+				<exclusion>
+					<groupId>io.grpc</groupId>
+					<artifactId>grpc-netty-shaded</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
 		<dependency>
 			<groupId>net.devh</groupId>
 			<artifactId>grpc-server-spring-boot-starter</artifactId>

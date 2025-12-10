@@ -73,7 +73,18 @@ public class SecurityConfig {
                                 "/api/auth/verify-email",
                                 "/api/auth/refresh-token",
                                 "/api/auth/check-token",
-                                "/error"  // Allow error endpoint
+                                "/api/objects/download-stream/**",
+
+                                "/api/objects/presigned/generate",           // Generate pre-signed URLs
+                                "/api/objects/presigned/validate",           // Validate pre-signed URLs
+                                "/api/objects/presigned/download/**",        // Download via pre-signed URLs
+                                "/api/objects/presigned/upload/**",          // Upload via pre-signed URLs
+                                "/api/objects/presigned/delete/**",          // Delete via pre-signed URLs
+                                "/api/objects/presigned/redirect/download/**",
+                                "/api/objects/presigned/redirect/upload/**",
+                                "/api/objects/presigned/redirect/delete/**",
+
+                                "/error"
                         ).permitAll()
 
                         // Role-based endpoints

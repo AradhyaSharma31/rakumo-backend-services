@@ -16,4 +16,5 @@ public class UploadResponse {
     private String checksum;
     private Long sizeBytes;
     private Instant uploadedAt;
+    private String objectId;
 }

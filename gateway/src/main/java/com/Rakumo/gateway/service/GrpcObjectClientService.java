@@ -1,6 +1,9 @@
 package com.Rakumo.gateway.service;
 
-import com.Rakumo.gateway.grpc.*;
+import com.Rakumo.object.download.*;
+import com.Rakumo.object.storage.*;
+import com.Rakumo.object.upload.*;
+import com.Rakumo.object.presigned.*;
 import io.grpc.StatusRuntimeException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,17 +15,17 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class GrpcObjectClientService {
 
-    // File Storage Service Client
     @GrpcClient("object-service")
     private FileStorageServiceProtoGrpc.FileStorageServiceProtoBlockingStub fileStorageStub;
 
-    // Upload Manager Service Client
     @GrpcClient("object-service")
     private UploadManagerServiceProtoGrpc.UploadManagerServiceProtoBlockingStub uploadManagerStub;
 
-    // Download Manager Service Client
     @GrpcClient("object-service")
     private DownloadManagerServiceProtoGrpc.DownloadManagerServiceProtoBlockingStub downloadManagerStub;
+
+    @GrpcClient("object-service")
+    private PreSignedUrlServiceProtoGrpc.PreSignedUrlServiceProtoBlockingStub preSignedUrlStub;
 
     // ========== FILE STORAGE OPERATIONS ==========
 
@@ -118,5 +121,92 @@ public class GrpcObjectClientService {
             log.error("File download failed: {}", e.getStatus());
             throw new RuntimeException("Download service unavailable: " + e.getStatus().getDescription());
         }
+    }
+
+    // ========== PRE-SIGNED URL OPERATIONS ==========
+
+    public GeneratePreSignedUrlResponse generatePreSignedUrl(GeneratePreSignedUrlRequest request) {
+        try {
+            log.info("Generating pre-signed URL: {}/{} operation: {}",
+                    request.getBucketName(), request.getObjectKey(), request.getOperation());
+            return preSignedUrlStub.generatePreSignedUrl(request);
+        } catch (StatusRuntimeException e) {
+            log.error("Pre-signed URL generation failed: {}", e.getStatus());
+            throw new RuntimeException("Pre-signed URL service unavailable: " + e.getStatus().getDescription());
+        }
+    }
+
+    public ValidatePreSignedUrlResponse validatePreSignedUrl(ValidatePreSignedUrlRequest request) {
+        try {
+            log.info("Validating pre-signed URL for: {}/{}", request.getBucketName(), request.getObjectKey());
+            return preSignedUrlStub.validatePreSignedUrl(request);
+        } catch (StatusRuntimeException e) {
+            log.error("Pre-signed URL validation failed: {}", e.getStatus());
+            throw new RuntimeException("Pre-signed URL service unavailable: " + e.getStatus().getDescription());
+        }
+    }
+
+    // ========== CONVENIENCE METHODS FOR PRE-SIGNED URLS ==========
+
+    /**
+     * Convenience method to generate a download pre-signed URL
+     */
+    public GeneratePreSignedUrlResponse generateDownloadUrl(String bucketName, String objectKey,
+                                                            String versionId, int expirationSeconds) {
+        GeneratePreSignedUrlRequest request = GeneratePreSignedUrlRequest.newBuilder()
+                .setBucketName(bucketName)
+                .setObjectKey(objectKey)
+                .setVersionId(versionId != null ? versionId : "")
+                .setOperation(Operation.DOWNLOAD)
+                .setExpirationSeconds(expirationSeconds > 0 ? expirationSeconds : 3600) // Default 1 hour
+                .build();
+
+        return generatePreSignedUrl(request);
+    }
+
+    /**
+     * Convenience method to generate an upload pre-signed URL
+     */
+    public GeneratePreSignedUrlResponse generateUploadUrl(String bucketName, String objectKey,
+                                                          String contentType, int expirationSeconds) {
+        GeneratePreSignedUrlRequest request = GeneratePreSignedUrlRequest.newBuilder()
+                .setBucketName(bucketName)
+                .setObjectKey(objectKey)
+                .setOperation(Operation.UPLOAD)
+                .setContentType(contentType != null ? contentType : "application/octet-stream")
+                .setExpirationSeconds(expirationSeconds > 0 ? expirationSeconds : 3600) // Default 1 hour
+                .build();
+
+        return generatePreSignedUrl(request);
+    }
+
+    /**
+     * Convenience method to generate a delete pre-signed URL
+     */
+    public GeneratePreSignedUrlResponse generateDeleteUrl(String bucketName, String objectKey,
+                                                          String versionId, int expirationSeconds) {
+        GeneratePreSignedUrlRequest request = GeneratePreSignedUrlRequest.newBuilder()
+                .setBucketName(bucketName)
+                .setObjectKey(objectKey)
+                .setVersionId(versionId != null ? versionId : "")
+                .setOperation(Operation.DELETE)
+                .setExpirationSeconds(expirationSeconds > 0 ? expirationSeconds : 3600) // Default 1 hour
+                .build();
+
+        return generatePreSignedUrl(request);
+    }
+
+    /**
+     * Quick validation method for pre-signed URLs
+     */
+    public boolean isValidPreSignedUrl(String url, String bucketName, String objectKey) {
+        ValidatePreSignedUrlRequest request = ValidatePreSignedUrlRequest.newBuilder()
+                .setUrl(url)
+                .setBucketName(bucketName)
+                .setObjectKey(objectKey)
+                .build();
+
+        ValidatePreSignedUrlResponse response = validatePreSignedUrl(request);
+        return response.getIsValid();
     }
 }

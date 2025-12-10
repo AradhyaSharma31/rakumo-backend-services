@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package com.Rakumo.object.presigned;
+
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "com.Rakumo.object.presigned";
+option java_outer_classname = "PreSignedUrlProto";
+
+service PreSignedUrlServiceProto {
+  rpc GeneratePreSignedUrl (GeneratePreSignedUrlRequest) returns (GeneratePreSignedUrlResponse);
+  rpc ValidatePreSignedUrl (ValidatePreSignedUrlRequest) returns (ValidatePreSignedUrlResponse);
+}
+
+message GeneratePreSignedUrlRequest {
+  string bucket_name = 1;
+  string object_key = 2;
+  string version_id = 3;
+  Operation operation = 4;
+  int32 expiration_seconds = 5;
+  string content_type = 6;
+}
+
+message GeneratePreSignedUrlResponse {
+  string pre_signed_url = 1;
+  string bucket_name = 2;
+  string object_key = 3;
+  string version_id = 4;
+  Operation operation = 5;
+  google.protobuf.Timestamp expiration = 6;
+}
+
+message ValidatePreSignedUrlRequest {
+  string url = 1;
+  string bucket_name = 2;
+  string object_key = 3;
+}
+
+message ValidatePreSignedUrlResponse {
+  bool is_valid = 1;
+}
+
+enum Operation {
+  DOWNLOAD = 0;
+  UPLOAD = 1;
+  DELETE = 2;
+}

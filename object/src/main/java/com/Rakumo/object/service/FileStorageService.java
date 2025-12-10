@@ -2,6 +2,7 @@ package com.Rakumo.object.service;
 
 import com.Rakumo.object.entity.RegularObjectEntity;
 import com.Rakumo.object.exception.ChecksumMismatchException;
+import com.Rakumo.object.exception.MetadataServiceException;
 import com.Rakumo.object.exception.ObjectNotFoundException;
 import org.springframework.core.io.Resource;
 
@@ -16,6 +17,6 @@ public interface FileStorageService {
     Resource retrieveFile(String bucketName, String objectKey, String versionId)
             throws ObjectNotFoundException, IOException;
 
-    void deleteFile(String bucketName, String objectKey, String versionId)
-            throws ObjectNotFoundException, IOException;
+    void deleteFile(String ownerId, String bucketName, String objectKey, String fileHash)
+            throws ObjectNotFoundException, IOException, MetadataServiceException;
 }

@@ -2,9 +2,12 @@ package com.Rakumo.object.util;
 
 import org.springframework.stereotype.Component;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -53,4 +56,37 @@ public final class ChecksumUtils {
         }
     }
 
+    public String hmacSha256(String data, String secretKey) {
+        try {
+            Mac hmac = Mac.getInstance("HmacSHA256");
+            SecretKeySpec secretKeySpec = new SecretKeySpec(
+                    secretKey.getBytes(StandardCharsets.UTF_8),
+                    "HmacSHA256"
+            );
+            hmac.init(secretKeySpec);
+
+            byte[] hash = hmac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            return HEX_FORMAT.formatHex(hash);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate HMAC", e);
+        }
+    }
+
+    public String hmacSha256(byte[] data, String secretKey) {
+        try {
+            Mac hmac = Mac.getInstance("HmacSHA256");
+            SecretKeySpec secretKeySpec = new SecretKeySpec(
+                    secretKey.getBytes(StandardCharsets.UTF_8),
+                    "HmacSHA256"
+            );
+            hmac.init(secretKeySpec);
+
+            byte[] hash = hmac.doFinal(data);
+            return HEX_FORMAT.formatHex(hash);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate HMAC", e);
+        }
+    }
 }

@@ -85,8 +85,8 @@ public class BucketGrpcService extends BucketServiceGrpc.BucketServiceImplBase {
                              StreamObserver<DeleteResponse> responseObserver) {
         try {
             bucketService.deleteBucket(
-                    UUID.fromString(request.getBucketId()),
-                    UUID.fromString(request.getOwnerId())
+                    UUID.fromString(request.getOwnerId()),
+                    UUID.fromString(request.getBucketId())
             );
 
             responseObserver.onNext(DeleteResponse.newBuilder()

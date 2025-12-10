@@ -8,12 +8,13 @@ import com.Rakumo.object.entity.RegularObjectEntity;
 import com.Rakumo.object.enumeration.UploadStatus;
 import com.Rakumo.object.exception.ChecksumMismatchException;
 import com.Rakumo.object.exception.MetadataServiceException;
+import com.Rakumo.object.exception.ObjectNotFoundException;
+import com.Rakumo.object.grpc.MetadataGrpcClient;
 import com.Rakumo.object.repository.MultipartUploadRepository;
 import com.Rakumo.object.service.FileChunkService;
 import com.Rakumo.object.service.FileStorageService;
 import com.Rakumo.object.service.UploadManagerService;
 import com.Rakumo.object.util.ChecksumUtils;
-import com.Rakumo.object.util.FileUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,7 @@ public class UploadManagerServiceImpl implements UploadManagerService {
     private final FileChunkServiceImpl fileChunkServiceImpl;
     private final MultipartUploadRepository multipartUploadRepository;
     private final ChecksumUtils checksumUtils;
+    private final MetadataGrpcClient metadataGrpcClient;
 
     private static final long MEMORY_THRESHOLD = 10 * 1024 * 1024; // 10MB
 
@@ -76,6 +78,7 @@ public class UploadManagerServiceImpl implements UploadManagerService {
                     .checksum(entity.getChecksum())
                     .sizeBytes(entity.getSizeBytes())
                     .uploadedAt(Instant.now())
+                    .objectId(entity.getId().toString())
                     .build();
         } catch (Exception e) {
             log.error("Regular upload failed for {}/{}", request.getBucketName(), request.getObjectKey(), e);
@@ -184,6 +187,7 @@ public class UploadManagerServiceImpl implements UploadManagerService {
                     .checksum(entity.getChecksum())
                     .sizeBytes(entity.getSizeBytes())
                     .uploadedAt(Instant.now())
+                    .objectId(entity.getId().toString())
                     .build();
         } finally {
             assembledStream.close();

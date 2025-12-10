@@ -17,11 +17,13 @@ service ObjectService {
 }
 
 message CreateObjectRequest {
-  string bucket_id = 1;
-  string object_key = 2;
-  string latest_version_id = 3;
-  string latest_etag = 4;
-  int64 latest_size = 5;
+  string id = 1;
+  string bucket_id = 2;
+  string object_key = 3;
+  string latest_version_id = 4;
+  string latest_etag = 5;
+  int64 latest_size = 6;
+  string object_id = 7;
 }
 
 message GetObjectRequest {

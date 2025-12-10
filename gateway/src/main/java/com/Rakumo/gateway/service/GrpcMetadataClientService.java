@@ -1,6 +1,10 @@
 package com.Rakumo.gateway.service;
 
-import com.Rakumo.gateway.grpc.*;
+import com.Rakumo.metadata.bucket.*;
+import com.Rakumo.metadata.bucket.DeleteResponse;
+import com.Rakumo.metadata.object.*;
+import com.Rakumo.metadata.object.version.*;
+import com.Rakumo.metadata.object.version.custom.*;
 import io.grpc.StatusRuntimeException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,7 +64,7 @@ public class GrpcMetadataClientService {
         }
     }
 
-    public DeleteResponse deleteBucket(DeleteBucketRequest request) {
+    public com.Rakumo.metadata.bucket.DeleteResponse deleteBucket(DeleteBucketRequest request) {
         try {
             log.info("Deleting bucket: {}", request.getBucketId());
             return bucketStub.deleteBucket(request);
@@ -122,7 +126,7 @@ public class GrpcMetadataClientService {
         }
     }
 
-    public DeleteResponse deleteObject(DeleteObjectRequest request) {
+    public com.Rakumo.metadata.object.DeleteResponse deleteObject(DeleteObjectRequest request) {
         try {
             log.info("Deleting object: {}", request.getObjectId());
             return objectStub.deleteObject(request);
@@ -174,7 +178,7 @@ public class GrpcMetadataClientService {
         }
     }
 
-    public DeleteResponse deleteVersion(DeleteVersionRequest request) {
+    public com.Rakumo.metadata.object.version.DeleteResponse deleteVersion(DeleteVersionRequest request) {
         try {
             log.info("Deleting version: {}", request.getVersionId());
             return versionStub.deleteVersion(request);
