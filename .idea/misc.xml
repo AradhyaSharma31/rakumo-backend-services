@@ -9,6 +9,7 @@
         <option value="$PROJECT_DIR$/gateway/pom.xml" />
         <option value="$PROJECT_DIR$/metadata/pom.xml" />
         <option value="$PROJECT_DIR$/metadata-proto/pom.xml" />
+        <option value="$PROJECT_DIR$/pom.xml" />
       </list>
     </option>
   </component>

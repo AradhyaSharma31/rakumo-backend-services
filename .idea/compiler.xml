@@ -3,23 +3,13 @@
   <component name="CompilerConfiguration">
     <annotationProcessing>
       <profile default="true" name="Default" enabled="true" />
-      <profile name="Annotation profile for object" enabled="true">
-        <sourceOutputDir name="target/generated-sources/annotations" />
-        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
-        <outputRelativeToContentRoot value="true" />
-        <processorPath useClasspath="false">
-          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.38/lombok-1.18.38.jar" />
-          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.38/lombok-1.18.38.jar" />
-        </processorPath>
-        <module name="auth" />
-        <module name="object" />
-      </profile>
       <profile name="Maven default annotation processors profile" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="metadata-proto" />
         <module name="gateway" />
+        <module name="rakumo" />
       </profile>
       <profile name="Annotation profile for metadata" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
@@ -34,6 +24,16 @@
         </processorPath>
         <module name="metadata" />
       </profile>
+      <profile name="Annotation profile for object" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.38/lombok-1.18.38.jar" />
+        </processorPath>
+        <module name="auth" />
+        <module name="object" />
+      </profile>
     </annotationProcessing>
   </component>
   <component name="JavacSettings">
@@ -43,6 +43,7 @@
       <module name="metadata" options="-parameters -Amapstruct.defaultComponentModel=spring -J--add-opens=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED" />
       <module name="metadata-proto" options="-parameters" />
       <module name="object" options="-parameters" />
+      <module name="rakumo" options="-parameters" />
     </option>
   </component>
 </project>
