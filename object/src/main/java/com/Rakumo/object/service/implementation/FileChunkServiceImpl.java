@@ -1,13 +1,32 @@
-package com.Rakumo.object.service.implementation;
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
-import com.Rakumo.object.exception.InvalidChunkException;
-import com.Rakumo.object.entity.FileChunkInfo;
-import com.Rakumo.object.entity.LocalObjectReference;
-import com.Rakumo.object.service.FileChunkService;
-import com.Rakumo.object.util.ChecksumUtils;
-import com.Rakumo.object.util.FilePathUtils;
-import com.Rakumo.object.util.FileUtils;
-import com.Rakumo.object.util.JsonUtils;
+package com.rakumo.object.service.implementation;
+
+import com.rakumo.object.exception.InvalidChunkException;
+import com.rakumo.object.entity.FileChunkInfo;
+import com.rakumo.object.entity.LocalObjectReference;
+import com.rakumo.object.service.FileChunkService;
+import com.rakumo.object.util.ChecksumUtils;
+import com.rakumo.object.util.FilePathUtils;
+import com.rakumo.object.util.FileUtils;
+import com.rakumo.object.util.JsonUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;

@@ -1,45 +1,78 @@
-package com.Rakumo.auth.entity;
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
-import jakarta.persistence.*;
-import lombok.Data;
+package com.rakumo.auth.entity;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import lombok.Data;
 
+/**
+ * Entity for managing verification tokens (OTPs) for user actions like email verification and password reset.
+ */
 @Entity
 @Table(name = "verification_tokens")
 @Data
 public class VerificationToken {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.UUID)
+  private UUID id;
 
-    @Column(nullable = false)
-    private String token;  // This will store the OTP
+  @Column(nullable = false)
+  private String token;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", referencedColumnName = "id", nullable = false)
-    private User user;
+  @OneToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "user_id", referencedColumnName = "id", nullable = false)
+  private User user;
 
-    @Column(name = "expiry_date", nullable = false)
-    private Instant expiryDate = Instant.now().plus(Duration.ofMinutes(15));
+  @Column(name = "expiry_date", nullable = false)
+  private Instant expiryDate = Instant.now().plus(Duration.ofMinutes(15));
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt = Instant.now();
+  @Column(name = "created_at", nullable = false)
+  private Instant createdAt = Instant.now();
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "token_type", nullable = false)
-    private TokenType tokenType = TokenType.EMAIL_VERIFICATION;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "token_type", nullable = false)
+  private TokenType tokenType = TokenType.EMAIL_VERIFICATION;
 
-    // Helper methods
-    public boolean isExpired() {
-        return Instant.now().isAfter(expiryDate);
-    }
+  public boolean isExpired() {
+    return Instant.now().isAfter(expiryDate);
+  }
 
-    public enum TokenType {
-        EMAIL_VERIFICATION,
-        PASSWORD_RESET
-    }
+  /**
+   * Enum to differentiate between different types of tokens (e.g., email verification, password reset).
+   */
+  public enum TokenType {
+      EMAIL_VERIFICATION,
+      PASSWORD_RESET
+  }
 }

@@ -8,7 +8,7 @@
 		<version>3.5.4</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.Rakumo</groupId>
+	<groupId>com.rakumo</groupId>
 	<artifactId>object</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>object</name>
@@ -151,7 +151,7 @@
 		</dependency>
 
 		<dependency>
-			<groupId>com.Rakumo</groupId>
+			<groupId>com.rakumo</groupId>
 			<artifactId>metadata-proto</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
